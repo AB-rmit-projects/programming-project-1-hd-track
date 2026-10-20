@@ -3,10 +3,8 @@ pre-commit:
     validate-placeholders:
       run: node scripts/validate-placeholders.js
 
-    format:
-      glob: '**/*.{ts,tsx,json,md,css}'
-      exclude: '(node_modules|\.next|\.git)'
-      run: npx --yes prettier --write {staged_files} || true
+    check-whitespace:
+      run: git diff --cached --check
 
     lint-frontend:
       root: 'frontend/'
