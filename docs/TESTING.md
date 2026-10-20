@@ -6,16 +6,19 @@
 |-------|---------|------|----------|-------------|
 | Frontend unit | `pnpm run test:component` | Vitest + Testing Library | Mocked | Utils, hooks, components |
 | Backend unit | `pnpm run test` | Vitest + supertest | Mocked | Route handlers, middleware |
-| Security rules | `pnpm run test:rules` | Vitest + `@firebase/rules-unit-testing` | Local Firestore emulator (`demo-safecall`) | `firebase/firestore.rules`, query shapes, SDK round trips |
-| All | `pnpm run test:all` | — | — | Runs all layers |
+| Security rules | `pnpm run test:rules` | Vitest + `@firebase/rules-unit-testing` | Local Firestore emulator (`demo-safecall`) | `firebase/firestore.rules`, query shapes, SDK round trips — **run separately; local-only, not yet in GitHub CI** |
+| All unit | `pnpm run test:all` | — | Mocked | Backend + frontend unit/component tests only — does **not** run `test:rules` |
 
-Unit tests mock Firebase and never make network calls. The **security-rules tests** are the one exception: they run against a local Firestore emulator under a `demo-` project ID, which can never reach a real Firebase project. The app itself never uses the emulator — it always talks to your real project.
+Unit tests mock Firebase and never make network calls. The **security-rules tests** are the one exception: they are configured to run against the local Firestore emulator (started by `firebase emulators:exec`) using the demo project ID `demo-safecall`. For `demo-` project IDs the Firebase CLI uses a demo configuration, and requests to services that are not emulated fail instead of going to a real project. The app itself does not use the emulator — it talks to your real project.
 
 ## Running Tests
 
 ```bash
-# Run all tests
+# Run all unit/component tests (backend + frontend) — mocked Firebase
 pnpm run test:all
+
+# Firestore security-rules tests — separate command, local emulator, Java 21+
+pnpm run test:rules
 
 # Watch mode (frontend)
 pnpm --filter frontend run test:watch
@@ -52,6 +55,8 @@ pnpm run test:rules   # needs Java 21+; starts the Firestore emulator, runs, sto
 - `firebase-tools` is run via `pnpm dlx` at a pinned version, so it isn't in the lockfile.
 - Each test seeds data with `withSecurityRulesDisabled` and calls `clearFirestore()` between tests.
 - Use `assertSucceeds` / `assertFails` around the same modular SDK calls the app makes, and reuse the app's query constraints (`ownIncidentsConstraints`, `actionHistoryConstraints`, `reviewedActionsConstraints`) so the tested query is the shipped query.
+- **Local-only for now:** GitHub CI (`ci.yml`) does not run these tests yet — run `pnpm run test:rules` yourself before pushing rules or query changes. Adding a CI job (Java 21 + `pnpm run test:rules`) is planned for Phase 7, because it requires a workflow change.
+- `pnpm run test:all` does **not** include these tests.
 - The emulator does **not** enforce composite indexes — `tests/unit/lib/firebase/indexes.test.ts` guards the index definitions instead; real index coverage is only proven against production after `firestore:indexes` is deployed.
 
 ## Mocking Firebase

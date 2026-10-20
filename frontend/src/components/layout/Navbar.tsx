@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { LogOut, User } from 'lucide-react'
+import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 
 export function Navbar() {
@@ -10,7 +11,14 @@ export function Navbar() {
   const { user, signOut } = useAuth()
 
   const handleSignOut = async () => {
-    await signOut()
+    try {
+      await signOut()
+    } catch {
+      // The server could not confirm the session was removed, so the user is
+      // still signed in. Say so; clicking sign out again retries.
+      toast.error('Sign-out failed — check your connection and try again.')
+      return
+    }
     router.replace('/auth/signin')
     router.refresh()
   }

@@ -50,18 +50,20 @@ This enables **lazy migration** — when a document is read, check `_schemaVersi
 
 ## `incidents` collection (SafeCall)
 
-**Path:** `/incidents/{incidentId}` — `incidentId` is deterministic: `{ownerUid}_{incidentCode}` (e.g. `abc123_INC-001`)
+> **Status:** the schema, rules and types below are implemented (Phase 2). The incident *data* is not populated yet: the deterministic IDs, the 50 incidents and the category distribution described here are the approved **Phase 3 seeding plan**, carried out by an administrator-run seed script.
+
+**Path:** `/incidents/{incidentId}` — planned seed IDs are deterministic: `{ownerUid}_{incidentCode}` (e.g. `abc123_INC-001`)
 **Access:** verified owner may **read** only. All client creates/updates/deletes are denied — incidents are written only by the administrator seed script via the Admin SDK (which bypasses rules).
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `ownerUid` | `string` | Yes | Firebase Auth UID of the demo operator who owns the incident |
-| `incidentCode` | `string` | Yes | Stable human label, `INC-001` … `INC-050` |
+| `incidentCode` | `string` | Yes | Stable human label; the Phase 3 seed plan uses `INC-001` … `INC-050` |
 | `deviceId` | `string` | Yes | Unique fictional SafeCall pendant ID |
 | `status` | `'OFFLINE' \| 'SILENT'` | Yes | Simulated connectivity state |
 | `suburb` / `state` / `postcode` | `string` / `'VIC'` / `string` | Yes | Fictional Victorian locality; postcode stored as a string |
 | `lastSignalAt` | `Timestamp` | Yes | Simulated last contact (not a live feed) |
-| `causeCategory` | `'UNPLANNED_OUTAGE' \| 'DEVICE_SIDE' \| 'PLANNED_MAINTENANCE' \| 'EXTERNAL_HAZARD' \| 'INSUFFICIENT_EVIDENCE'` | Yes | Scenario label (15/12/10/8/5 in the seed set) — an association, not proof of cause |
+| `causeCategory` | `'UNPLANNED_OUTAGE' \| 'DEVICE_SIDE' \| 'PLANNED_MAINTENANCE' \| 'EXTERNAL_HAZARD' \| 'INSUFFICIENT_EVIDENCE'` | Yes | Scenario label; Phase 3 seed plan distribution 15/12/10/8/5 — an association, not proof of cause |
 | `likelyCause` | `string` | Yes | Qualified, fictional explanation |
 | `recommendedAction` | `string` | Yes | Simulated, advisory-only recommendation |
 | `evidenceSummary` | `string` | Yes | Fictional supporting evidence |
@@ -90,4 +92,3 @@ No other fields are accepted (`keys().hasOnly(...)`).
 **Queries:**
 - History: `actionHistoryConstraints(uid, incidentId)` → `ownerUid ==`, `incidentId ==`, `orderBy(createdAt, desc)`. Needs composite index `actionLogs (ownerUid ASC, incidentId ASC, createdAt DESC)` in `firebase/firestore.indexes.json`.
 - Review counts: `reviewedActionsConstraints(uid)` → `ownerUid ==`, `actionType == 'REVIEWED'` (equality filters only; served by single-field indexes). An incident is *reviewed* when at least one REVIEWED log exists; everything else awaits completion.
-

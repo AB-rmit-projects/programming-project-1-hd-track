@@ -8,7 +8,7 @@ import {
 import { doc, serverTimestamp, setDoc, Timestamp, type Firestore } from 'firebase/firestore'
 import { ACTION_LOGS_COLLECTION, INCIDENTS_COLLECTION } from '@/lib/firebase/firestore'
 
-/** `demo-` project IDs can only ever reach the local emulator, never a real Firebase project. */
+/** This suite uses the demo project `demo-safecall` and is configured to run against the local Firestore emulator. */
 export const PROJECT_ID = 'demo-safecall'
 
 export const ALICE = 'alice-uid'

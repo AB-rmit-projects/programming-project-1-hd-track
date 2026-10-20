@@ -64,14 +64,14 @@ Everything a feature build needs already exists below. **Do not survey the codeb
 | `frontend/src/lib/firebase/firestore.ts` | `getUsersCollection()`, `userDoc(uid)`, `getIncidentsCollection()`, `incidentDoc(id)`, `getActionLogsCollection()`, `INCIDENTS_COLLECTION`, `ACTION_LOGS_COLLECTION`; query constraints `ownIncidentsConstraints(uid)`, `actionHistoryConstraints(uid, incidentId)`, `reviewedActionsConstraints(uid)` — add new collections here as `get{X}Collection()` functions (`typedCollection` is module-private) | Typed collection access; owner-scoped queries (rules are not filters) |
 | `frontend/src/lib/firebase/auth.ts` | `signInWithEmail`, `signUpWithEmail`, `signInWithGoogle`, `signOut`, `resetPassword`, `getIdToken` | Client sign-in flows |
 | `frontend/src/hooks/useFirestore.ts` | `useCollection(ref, ...constraints)` → `{ data, loading, error }` (onSnapshot) | Realtime lists in Client Components |
-| `frontend/src/hooks/useAuth.ts` | `useAuth()` → `{ user, profile, ... }` (AuthContext) | Current user in Client Components |
+| `frontend/src/hooks/useAuth.ts` | `useAuth()` → `{ user, profile, loading, signInWithEmail, signUpWithEmail, signInWithGoogle, signOut, confirmSession }` (AuthContext, `providers/AuthProvider.tsx`). `user` is set only after the server accepts the session. `signOut()` throws `sign-out-incomplete` if the server can't confirm the session cookie was deleted — the user stays signed in; show an error and let them retry. `confirmSession()` re-checks the session with the server → `true`, or `false` after signing out | Current user and auth actions in Client Components |
 | `frontend/src/types/index.ts` | `ActionResult<T>` `{ success, error?, data? }` + re-exports of `types/auth.ts`, `types/firestore.ts` | Return type of every Server Action |
 | `frontend/src/types/firestore.ts` | `UserProfile`, `Incident`, `ActionLog`, `ActionType`, `CauseCategory` — add new collection interfaces here (always with `_schemaVersion: 1`) | Collection types |
 | `frontend/src/lib/validations/` | `loginSchema`, `signupSchema`, `registerSchema`, `resetPasswordSchema` (`auth.ts`) · `idSchema`, `paginationSchema` (`common.ts`) · `actionLogInputSchema`, `ACTION_TYPES`, `NOTE_MIN_LENGTH`, `NOTE_MAX_LENGTH` (`actionLog.ts`) | Zod schemas — add feature schemas here or in the feature folder |
 | `frontend/src/lib/utils.ts` | `cn()`, `formatDate`, `formatDatetime`, `truncate` | Class merging, formatting |
 | `frontend/src/components/layout/` | `DashboardShell`, `Sidebar` (navItems array — add links here), `Navbar`, `PageHeader` | App shell |
 | `frontend/src/components/shared/` | `ErrorBoundary`, `LoadingSpinner`, `FullPageSpinner`, `EmptyState { title, description?, icon?, action? }` | Loading/empty/error states |
-| `frontend/src/app/api/auth/session/route.ts` | POST (token → `__session` cookie), DELETE | Already wired — don't touch for features |
+| `frontend/src/app/api/auth/session/route.ts` | POST (verifies the ID token incl. revocation, requires `email_verified`, then sets the `__session` cookie; 400 / 401 / 403 on failure), DELETE | Already wired — don't touch for features |
 
 ### Backend building blocks
 
@@ -270,8 +270,8 @@ pnpm run validate         # Check for unreplaced template placeholders
 pnpm run dev              # Start the frontend dev server (talks to your real Firebase project)
 pnpm run test             # Backend unit tests (mocked Firebase Admin)
 pnpm run test:component   # Frontend unit tests
-pnpm run test:all         # All tests
-pnpm run test:rules       # Firestore security-rules tests (local emulator, Java 21+)
+pnpm run test:all         # Backend + frontend unit/component tests (does NOT include test:rules)
+pnpm run test:rules       # Firestore security-rules tests — run separately (local emulator, Java 21+); local-only, not yet in GitHub CI (planned Phase 7)
 pnpm run lint             # ESLint across all packages
 pnpm run typecheck        # TypeScript check across all packages
 ```
