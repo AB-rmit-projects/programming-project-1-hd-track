@@ -1,6 +1,6 @@
 {
   "projects": {
-    "default": "REPLACE_WITH_FIREBASE_PROJECT_ID"
+    "default": "programming-project-1-hd-track"
   },
   "targets": {},
   "etags": {}
