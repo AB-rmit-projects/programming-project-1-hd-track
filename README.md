@@ -129,24 +129,15 @@ pnpm run validate         # Check for unreplaced template placeholders
 
 Security is enforced in independent layers — Claude Code guard hooks, HTTP hardening (helmet/CORS/rate limits), token + session-cookie auth, Zod input validation, default-deny Firestore rules, and CI scanning (`pnpm audit`). See [docs/SECURITY.md](docs/SECURITY.md).
 
-### Known `pnpm audit` findings (manual fix)
+### `pnpm audit` status
 
+`pnpm audit --audit-level=high` (the CI security job) passes with 0 critical and 0 unignored high findings. One advisory is explicitly ignored in `pnpm-workspace.yaml` (`auditConfig.ignoreGhsas`) because no fix exists:
 
-`pnpm audit` currently flags two high-severity CVEs — both transitive, dev/build-time only, not runtime-reachable:
+| Advisory | Package | Why it is ignored | Remove when |
+|----------|---------|-------------------|-------------|
+| [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) | `braces` ≤3.0.3 | No patched version is published. Reached only via `eslint-config-next` → `@next/eslint-plugin-next` → `fast-glob@3.3.1` (pinned) → `micromatch` — lint-time only, never shipped to the app. | `braces` ≥3.0.4, or a `fast-glob`/`eslint-config-next` release without it, is published |
 
-| Package | Issue | Pulled in by |
-|---------|-------|--------------|
-| `js-yaml` | CVE-2026-59870 — quadratic CPU DoS on `!!omap` resolution | eslint's dependency chain (lint-time only) |
-| `nanoid` | Infinite loop when a custom generator's `size` is 0 | postcss, used by Tailwind/Next/Vitest builds (build-time only) |
-
-To patch: add these two lines under `overrides:` in `pnpm-workspace.yaml`, then run `pnpm install`:
-
-```yaml
-  js-yaml: '^4.3.1'
-  nanoid: '^3.3.17'
-```
-
-Confirm with `pnpm audit` — should show 0 high/critical findings.
+Every other advisory still fails the job. One scoped override also exists for a security fix: `@firebase/firestore>@grpc/grpc-js` (Firebase's client SDK pins a grpc-js line with no patched release).
 
 ## Git Workflow
 
