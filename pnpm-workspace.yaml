@@ -8,7 +8,7 @@ overrides:
   # environment-dependent type errors depending on how pnpm hoists the two
   # versions. Force one version everywhere.
   '@types/express': '^5.0.1'
-  # next@16.2.12 still bundles its own old postcss internally (separate from
+  # next pins its own exact postcss version as a dependency (separate from
   # the patched one Tailwind/Vite already use) — force it to a patched
   # version too. postcss 8.x is backward-compatible within the major.
   postcss: '^8.5.18'
