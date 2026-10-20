@@ -6,9 +6,10 @@
 |-------|---------|------|----------|-------------|
 | Frontend unit | `pnpm run test:component` | Vitest + Testing Library | Mocked | Utils, hooks, components |
 | Backend unit | `pnpm run test` | Vitest + supertest | Mocked | Route handlers, middleware |
+| Security rules | `pnpm run test:rules` | Vitest + `@firebase/rules-unit-testing` | Local Firestore emulator (`demo-safecall`) | `firebase/firestore.rules`, query shapes, SDK round trips |
 | All | `pnpm run test:all` | — | — | Runs all layers |
 
-There's no local emulator, so there's no integration-test layer against a real Firestore — all tests mock Firebase and never make real network calls.
+Unit tests mock Firebase and never make network calls. The **security-rules tests** are the one exception: they run against a local Firestore emulator under a `demo-` project ID, which can never reach a real Firebase project. The app itself never uses the emulator — it always talks to your real project.
 
 ## Running Tests
 
@@ -40,6 +41,18 @@ pnpm --filter backend run test:coverage
 
 - **Unit tests:** Each route handler tested with supertest; Firebase Admin is mocked
 - Every new route created via `/add-route` skill must have at minimum: 200/201 happy path + 401 without token
+
+## Security rules tests
+
+```bash
+pnpm run test:rules   # needs Java 21+; starts the Firestore emulator, runs, stops it
+```
+
+- Lives in `frontend/tests/rules/*.rules.test.ts` (config: `frontend/vitest.rules.config.ts`); excluded from `pnpm run test:component`.
+- `firebase-tools` is run via `pnpm dlx` at a pinned version, so it isn't in the lockfile.
+- Each test seeds data with `withSecurityRulesDisabled` and calls `clearFirestore()` between tests.
+- Use `assertSucceeds` / `assertFails` around the same modular SDK calls the app makes, and reuse the app's query constraints (`ownIncidentsConstraints`, `actionHistoryConstraints`, `reviewedActionsConstraints`) so the tested query is the shipped query.
+- The emulator does **not** enforce composite indexes — `tests/unit/lib/firebase/indexes.test.ts` guards the index definitions instead; real index coverage is only proven against production after `firestore:indexes` is deployed.
 
 ## Mocking Firebase
 

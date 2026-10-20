@@ -47,3 +47,47 @@ This enables **lazy migration** — when a document is read, check `_schemaVersi
 ---
 
 <!-- Add new collection schemas below using the /firebase-collection skill -->
+
+## `incidents` collection (SafeCall)
+
+**Path:** `/incidents/{incidentId}` — `incidentId` is deterministic: `{ownerUid}_{incidentCode}` (e.g. `abc123_INC-001`)
+**Access:** verified owner may **read** only. All client creates/updates/deletes are denied — incidents are written only by the administrator seed script via the Admin SDK (which bypasses rules).
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `ownerUid` | `string` | Yes | Firebase Auth UID of the demo operator who owns the incident |
+| `incidentCode` | `string` | Yes | Stable human label, `INC-001` … `INC-050` |
+| `deviceId` | `string` | Yes | Unique fictional SafeCall pendant ID |
+| `status` | `'OFFLINE' \| 'SILENT'` | Yes | Simulated connectivity state |
+| `suburb` / `state` / `postcode` | `string` / `'VIC'` / `string` | Yes | Fictional Victorian locality; postcode stored as a string |
+| `lastSignalAt` | `Timestamp` | Yes | Simulated last contact (not a live feed) |
+| `causeCategory` | `'UNPLANNED_OUTAGE' \| 'DEVICE_SIDE' \| 'PLANNED_MAINTENANCE' \| 'EXTERNAL_HAZARD' \| 'INSUFFICIENT_EVIDENCE'` | Yes | Scenario label (15/12/10/8/5 in the seed set) — an association, not proof of cause |
+| `likelyCause` | `string` | Yes | Qualified, fictional explanation |
+| `recommendedAction` | `string` | Yes | Simulated, advisory-only recommendation |
+| `evidenceSummary` | `string` | Yes | Fictional supporting evidence |
+| `isSimulated` | `true` | Yes | Always true; shown as a label in the UI |
+| `createdAt` | `Timestamp` | Yes | Seed time |
+| `_schemaVersion` | `1` | Yes | Schema version |
+
+**Queries:** always `where('ownerUid', '==', uid)` — use `ownIncidentsConstraints(uid)`.
+
+## `actionLogs` collection (SafeCall)
+
+**Path:** `/actionLogs/{actionLogId}` (auto ID)
+**Access:** verified owner may **read** their own logs and **create** new ones. Update and delete are denied for every client — the history is append-only.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `ownerUid` | `string` | Yes | Must equal the signed-in user's UID |
+| `incidentId` | `string` | Yes | ID of an existing incident owned by the same user (checked with `exists()` + `get()`) |
+| `actionType` | `'ACKNOWLEDGE' \| 'ESCALATE' \| 'REVIEWED'` | Yes | The operator's decision |
+| `note` | `string` | Yes | Rationale; already trimmed, 10–500 characters |
+| `createdAt` | `Timestamp` | Yes | Must be `serverTimestamp()` (rules require `== request.time`) |
+| `_schemaVersion` | `1` | Yes | Schema version |
+
+No other fields are accepted (`keys().hasOnly(...)`).
+
+**Queries:**
+- History: `actionHistoryConstraints(uid, incidentId)` → `ownerUid ==`, `incidentId ==`, `orderBy(createdAt, desc)`. Needs composite index `actionLogs (ownerUid ASC, incidentId ASC, createdAt DESC)` in `firebase/firestore.indexes.json`.
+- Review counts: `reviewedActionsConstraints(uid)` → `ownerUid ==`, `actionType == 'REVIEWED'` (equality filters only; served by single-field indexes). An incident is *reviewed* when at least one REVIEWED log exists; everything else awaits completion.
+
