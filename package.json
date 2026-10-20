@@ -13,6 +13,7 @@
     "test": "pnpm --filter backend test",
     "test:component": "pnpm --filter frontend test",
     "test:all": "pnpm run test && pnpm run test:component",
+    "test:rules": "pnpm dlx firebase-tools@15.34.0 emulators:exec --only firestore --project demo-safecall \"pnpm --filter frontend test:rules\"",
     "lint": "pnpm -r lint",
     "format": "pnpm -r format",
     "typecheck": "pnpm -r typecheck",

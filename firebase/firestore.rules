@@ -33,6 +33,20 @@ service cloud.firestore {
       return resource == null || !('deletedAt' in resource.data) || resource.data.deletedAt == null;
     }
 
+    // Signed in AND the Auth token says the email address has been verified.
+    function isVerified() {
+      return isAuthenticated() && request.auth.token.email_verified == true;
+    }
+
+    // The existing document belongs to the caller (reads; list queries must filter on ownerUid).
+    function ownsExisting() {
+      return resource.data.ownerUid == request.auth.uid;
+    }
+
+    function incidentPath(incidentId) {
+      return /databases/$(database)/documents/incidents/$(incidentId);
+    }
+
     // ── Collections ────────────────────────────────────────────────────────
 
     // users/{userId}
@@ -54,6 +68,52 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'updatedAt', '_schemaVersion']);
 
       allow delete: if false; // soft-delete only — set deletedAt field instead
+    }
+
+    // incidents/{incidentId}
+    // Fictional incidents seeded by an administrator with the Admin SDK (which
+    // bypasses these rules). Operators may only read their own; no client writes.
+    match /incidents/{incidentId} {
+      allow read: if isVerified() && ownsExisting();
+      allow create, update, delete: if false;
+    }
+
+    // actionLogs/{actionLogId}
+    // An operator's decision about one of their own incidents. Append-only for
+    // clients: create + read only; saved entries can never be edited or deleted.
+    match /actionLogs/{actionLogId} {
+      allow read: if isVerified() && ownsExisting();
+
+      allow create: if isVerified() && isValidNewActionLog(request.resource.data);
+
+      allow update, delete: if false;
+
+      function isValidNewActionLog(data) {
+        return data.keys().hasAll(['ownerUid', 'incidentId', 'actionType', 'note', 'createdAt', '_schemaVersion'])
+          && data.keys().hasOnly(['ownerUid', 'incidentId', 'actionType', 'note', 'createdAt', '_schemaVersion'])
+          && data.ownerUid == request.auth.uid
+          && data.actionType in ['ACKNOWLEDGE', 'ESCALATE', 'REVIEWED']
+          && isValidNote(data.note)
+          && data.createdAt == request.time          // only serverTimestamp() matches
+          && data._schemaVersion == 1
+          && isOwnIncident(data.incidentId);
+      }
+
+      // Already trimmed (no leading/trailing whitespace) and 10–500 characters.
+      function isValidNote(note) {
+        return note is string
+          && note == note.trim()
+          && note.size() >= 10
+          && note.size() <= 500;
+      }
+
+      // The referenced incident exists and belongs to the same operator.
+      function isOwnIncident(incidentId) {
+        return incidentId is string
+          && incidentId.matches('[A-Za-z0-9_-]{1,128}')
+          && exists(incidentPath(incidentId))
+          && get(incidentPath(incidentId)).data.ownerUid == request.auth.uid;
+      }
     }
 
     // Add new collection rules above this comment using the /firebase-collection skill.

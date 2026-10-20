@@ -117,7 +117,8 @@ pnpm run dev              # Frontend dev server (talks to your real Firebase pro
 pnpm run build            # Build all packages
 pnpm run test             # Backend unit tests (mocked Firebase Admin)
 pnpm run test:component   # Frontend unit tests
-pnpm run test:all         # All tests
+pnpm run test:all         # Backend + frontend unit/component tests (excludes Firestore rules tests)
+pnpm run test:rules       # Firestore security-rules tests — run separately (local emulator, Java 21+)
 pnpm run lint             # ESLint across all packages
 pnpm run format           # Prettier across all packages
 pnpm run typecheck        # TypeScript check across all packages

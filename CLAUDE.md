@@ -58,20 +58,20 @@ Everything a feature build needs already exists below. **Do not survey the codeb
 
 | File | Exports | Use for |
 |------|---------|---------|
-| `frontend/src/actions/auth.actions.ts` | `requireAuth()` (redirects if unauthed, returns session with `.uid`), `getServerSession()`, `serverSignOut()` | First line of every Server Action / protected page |
+| `frontend/src/actions/auth.actions.ts` | `requireAuth()` (redirects if unauthed, returns session with `.uid`), `getServerSession()` (null unless the session's email is verified), `serverSignOut()` | First line of every Server Action / protected page |
 | `frontend/src/lib/firebase/admin.ts` | `adminAuth`, `adminDb` (lazy, `server-only`) | All server-side Firebase |
 | `frontend/src/lib/firebase/client.ts` | `getClientApp/Auth/Db()` | Browser SDK (Client Components only) |
-| `frontend/src/lib/firebase/firestore.ts` | `getUsersCollection()`, `userDoc(uid)` — add new collections here as `get{X}Collection()` functions (`typedCollection` is module-private) | Typed collection access |
+| `frontend/src/lib/firebase/firestore.ts` | `getUsersCollection()`, `userDoc(uid)`, `getIncidentsCollection()`, `incidentDoc(id)`, `getActionLogsCollection()`, `INCIDENTS_COLLECTION`, `ACTION_LOGS_COLLECTION`; query constraints `ownIncidentsConstraints(uid)`, `actionHistoryConstraints(uid, incidentId)`, `reviewedActionsConstraints(uid)` — add new collections here as `get{X}Collection()` functions (`typedCollection` is module-private) | Typed collection access; owner-scoped queries (rules are not filters) |
 | `frontend/src/lib/firebase/auth.ts` | `signInWithEmail`, `signUpWithEmail`, `signInWithGoogle`, `signOut`, `resetPassword`, `getIdToken` | Client sign-in flows |
 | `frontend/src/hooks/useFirestore.ts` | `useCollection(ref, ...constraints)` → `{ data, loading, error }` (onSnapshot) | Realtime lists in Client Components |
-| `frontend/src/hooks/useAuth.ts` | `useAuth()` → `{ user, profile, ... }` (AuthContext) | Current user in Client Components |
+| `frontend/src/hooks/useAuth.ts` | `useAuth()` → `{ user, profile, loading, signInWithEmail, signUpWithEmail, signInWithGoogle, signOut, confirmSession }` (AuthContext, `providers/AuthProvider.tsx`). `user` is set only after the server accepts the session. `signOut()` throws `sign-out-incomplete` if the server can't confirm the session cookie was deleted — the user stays signed in; show an error and let them retry. `confirmSession()` re-checks the session with the server → `true`, or `false` after signing out | Current user and auth actions in Client Components |
 | `frontend/src/types/index.ts` | `ActionResult<T>` `{ success, error?, data? }` + re-exports of `types/auth.ts`, `types/firestore.ts` | Return type of every Server Action |
-| `frontend/src/types/firestore.ts` | `UserProfile` — add new collection interfaces here (always with `_schemaVersion: 1`) | Collection types |
-| `frontend/src/lib/validations/` | `loginSchema`, `signupSchema`, `registerSchema`, `resetPasswordSchema` (`auth.ts`) · `idSchema`, `paginationSchema` (`common.ts`) | Zod schemas — add feature schemas here or in the feature folder |
+| `frontend/src/types/firestore.ts` | `UserProfile`, `Incident`, `ActionLog`, `ActionType`, `CauseCategory` — add new collection interfaces here (always with `_schemaVersion: 1`) | Collection types |
+| `frontend/src/lib/validations/` | `loginSchema`, `signupSchema`, `registerSchema`, `resetPasswordSchema` (`auth.ts`) · `idSchema`, `paginationSchema` (`common.ts`) · `actionLogInputSchema`, `ACTION_TYPES`, `NOTE_MIN_LENGTH`, `NOTE_MAX_LENGTH` (`actionLog.ts`) | Zod schemas — add feature schemas here or in the feature folder |
 | `frontend/src/lib/utils.ts` | `cn()`, `formatDate`, `formatDatetime`, `truncate` | Class merging, formatting |
 | `frontend/src/components/layout/` | `DashboardShell`, `Sidebar` (navItems array — add links here), `Navbar`, `PageHeader` | App shell |
 | `frontend/src/components/shared/` | `ErrorBoundary`, `LoadingSpinner`, `FullPageSpinner`, `EmptyState { title, description?, icon?, action? }` | Loading/empty/error states |
-| `frontend/src/app/api/auth/session/route.ts` | POST (token → `__session` cookie), DELETE | Already wired — don't touch for features |
+| `frontend/src/app/api/auth/session/route.ts` | POST (verifies the ID token incl. revocation, requires `email_verified`, then sets the `__session` cookie; 400 / 401 / 403 on failure), DELETE | Already wired — don't touch for features |
 
 ### Backend building blocks
 
@@ -87,7 +87,7 @@ Everything a feature build needs already exists below. **Do not survey the codeb
 
 ### Firestore rules helpers (`firebase/firestore.rules`)
 
-`isAuthenticated()` · `isOwner(uid)` · `isAdmin()` (Firestore read) · `hasCustomClaim(claim)` (no read) · `notDeleted()`
+`isAuthenticated()` · `isVerified()` (signed in + `email_verified`) · `isOwner(uid)` · `ownsExisting()` (`resource.data.ownerUid == auth.uid`) · `incidentPath(id)` · `isAdmin()` (Firestore read) · `hasCustomClaim(claim)` (no read) · `notDeleted()`
 
 ### Existing routes/pages
 
@@ -245,7 +245,7 @@ Always use `pnpm`. Run commands as:
 - `pages/` directory — this is App Router only
 - `firebase/compat` — modular SDK only
 - Firebase Cloud Storage — removed from this boilerplate; it requires the paid Blaze plan. Store file metadata in Firestore, or use a free third-party host, if a feature needs uploads.
-- Docker / local Firebase emulators — not part of this setup; the app always talks to your real (free Spark-plan) Firebase project
+- Docker / running the app against local Firebase emulators — the app always talks to your real (free Spark-plan) Firebase project. The Firestore emulator is used only by the security-rules tests (`pnpm run test:rules`, `demo-` project)
 - `NEXT_PUBLIC_` prefix on secret values (service account, API keys)
 - Committing `.env.local` or `.env` — they are gitignored
 - Committing directly to `main`
@@ -270,7 +270,8 @@ pnpm run validate         # Check for unreplaced template placeholders
 pnpm run dev              # Start the frontend dev server (talks to your real Firebase project)
 pnpm run test             # Backend unit tests (mocked Firebase Admin)
 pnpm run test:component   # Frontend unit tests
-pnpm run test:all         # All tests
+pnpm run test:all         # Backend + frontend unit/component tests (does NOT include test:rules)
+pnpm run test:rules       # Firestore security-rules tests — run separately (local emulator, Java 21+); local-only, not yet in GitHub CI (planned Phase 7)
 pnpm run lint             # ESLint across all packages
 pnpm run typecheck        # TypeScript check across all packages
 ```

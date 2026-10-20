@@ -10,6 +10,8 @@ const SESSION_COOKIE_NAME = '__session'
 /**
  * Verify the current session cookie and return the decoded token.
  * Use this in Server Components and Server Actions to authenticate requests.
+ * Sessions for unverified email addresses are treated as signed out, matching
+ * the client (AuthProvider) and the Firestore rules (isVerified()).
  */
 export async function getServerSession() {
   const cookieStore = await cookies()
@@ -19,6 +21,7 @@ export async function getServerSession() {
 
   try {
     const decoded = await adminAuth.verifySessionCookie(sessionCookie, true)
+    if (decoded.email_verified !== true) return null
     return decoded
   } catch {
     return null

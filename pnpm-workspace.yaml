@@ -20,6 +20,10 @@ overrides:
   # Node build (the browser uses WebChannel). Remove once Firebase ships a
   # release that allows grpc-js >=1.13.6.
   '@firebase/firestore>@grpc/grpc-js': '^1.14.5'
+  # Pins the patched Vite 7 release for GHSA-587h-7wmj-h5pm (vite <=7.3.6;
+  # test tooling only, via vitest and @vitejs/plugin-react). Review this
+  # override during the next dependency update.
+  vite: 7.3.7
 
 auditConfig:
   ignoreGhsas:
