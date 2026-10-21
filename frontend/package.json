@@ -6,15 +6,16 @@
     "dev": "node scripts/run-next.cjs dev",
     "build": "node scripts/run-next.cjs build",
     "start": "node scripts/run-next.cjs start",
-    "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix",
+    "lint": "eslint src/ scripts/seed-incidents/",
+    "lint:fix": "eslint src/ scripts/seed-incidents/ --fix",
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:rules": "vitest run --config vitest.rules.config.ts"
+    "test:rules": "vitest run --config vitest.rules.config.ts",
+    "seed:incidents": "node --experimental-strip-types scripts/seed-incidents/cli.ts"
   },
   "dependencies": {
     "next": "16.3.8",

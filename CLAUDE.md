@@ -71,6 +71,7 @@ Everything a feature build needs already exists below. **Do not survey the codeb
 | `frontend/src/lib/utils.ts` | `cn()`, `formatDate`, `formatDatetime`, `truncate` | Class merging, formatting |
 | `frontend/src/components/layout/` | `DashboardShell`, `Sidebar` (navItems array — add links here), `Navbar`, `PageHeader` | App shell |
 | `frontend/src/components/shared/` | `ErrorBoundary`, `LoadingSpinner`, `FullPageSpinner`, `EmptyState { title, description?, icon?, action? }` | Loading/empty/error states |
+| `frontend/scripts/seed-incidents/` | `cli.ts` (`main`, emulator identity probe), `options.ts` (`parseSeedOptions` — every safety guard), `dataset.ts` (`buildSeedIncidents`, `CATEGORY_DISTRIBUTION`), `scenarios.ts` (the 50 fictional scenarios), `seed.ts` (`runSeed`, `adminIncidentStore` — create-only) | Administrator-only incident seeding, **local emulator only**; outside `src/`, never imported by the app. See `docs/SEEDING.md` |
 | `frontend/src/app/api/auth/session/route.ts` | POST (verifies the ID token incl. revocation, requires `email_verified`, then sets the `__session` cookie; 400 / 401 / 403 on failure), DELETE | Already wired — don't touch for features |
 
 ### Backend building blocks
@@ -273,6 +274,7 @@ pnpm run test:component   # Frontend unit tests
 pnpm run test:all         # Backend + frontend unit/component tests (does NOT include test:rules)
 pnpm run test:rules       # Firestore security-rules tests — run separately (local emulator, Java 21+); local-only, not yet in GitHub CI (planned Phase 7)
 pnpm run lint             # ESLint across all packages
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 pnpm seed:incidents --project demo-safecall --owner-uid <demo-uid> [--write]  # Seed 50 fictional incidents into the LOCAL emulator only (dry run without --write) — see docs/SEEDING.md
 pnpm run typecheck        # TypeScript check across all packages
 ```
 
