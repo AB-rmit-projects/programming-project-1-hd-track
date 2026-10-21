@@ -50,20 +50,20 @@ This enables **lazy migration** — when a document is read, check `_schemaVersi
 
 ## `incidents` collection (SafeCall)
 
-> **Status:** the schema, rules and types below are implemented (Phase 2). The incident *data* is not populated yet: the deterministic IDs, the 50 incidents and the category distribution described here are the approved **Phase 3 seeding plan**, carried out by an administrator-run seed script.
+> **Status:** the schema, rules and types below are implemented (Phase 2). The administrator seed script is implemented (Phase 3) and verified against the local Firestore emulator only — see [SEEDING.md](SEEDING.md). **No real Firebase project has been populated with incidents yet**; production seeding is a separate, approved step.
 
-**Path:** `/incidents/{incidentId}` — planned seed IDs are deterministic: `{ownerUid}_{incidentCode}` (e.g. `abc123_INC-001`)
+**Path:** `/incidents/{incidentId}` — seed IDs are deterministic: `{ownerUid}_{incidentCode}` (e.g. `abc123_INC-001`)
 **Access:** verified owner may **read** only. All client creates/updates/deletes are denied — incidents are written only by the administrator seed script via the Admin SDK (which bypasses rules).
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `ownerUid` | `string` | Yes | Firebase Auth UID of the demo operator who owns the incident |
-| `incidentCode` | `string` | Yes | Stable human label; the Phase 3 seed plan uses `INC-001` … `INC-050` |
+| `incidentCode` | `string` | Yes | Stable human label; the seed script uses `INC-001` … `INC-050` |
 | `deviceId` | `string` | Yes | Unique fictional SafeCall pendant ID |
-| `status` | `'OFFLINE' \| 'SILENT'` | Yes | Simulated connectivity state |
-| `suburb` / `state` / `postcode` | `string` / `'VIC'` / `string` | Yes | Fictional Victorian locality; postcode stored as a string |
+| `status` | `'OFFLINE' \| 'SILENT'` | Yes | Simulated connectivity state: `OFFLINE` = no heartbeat; `SILENT` = heartbeat but a missed check-in (see SEEDING.md) |
+| `suburb` / `state` / `postcode` | `string` / `'VIC'` / `string` | Yes | Real Victorian suburb and postcode for a fictional incident; postcode stored as a string |
 | `lastSignalAt` | `Timestamp` | Yes | Simulated last contact (not a live feed) |
-| `causeCategory` | `'UNPLANNED_OUTAGE' \| 'DEVICE_SIDE' \| 'PLANNED_MAINTENANCE' \| 'EXTERNAL_HAZARD' \| 'INSUFFICIENT_EVIDENCE'` | Yes | Scenario label; Phase 3 seed plan distribution 15/12/10/8/5 — an association, not proof of cause |
+| `causeCategory` | `'UNPLANNED_OUTAGE' \| 'DEVICE_SIDE' \| 'PLANNED_MAINTENANCE' \| 'EXTERNAL_HAZARD' \| 'INSUFFICIENT_EVIDENCE'` | Yes | Scenario label; seed distribution 15/12/10/8/5 — an association, not proof of cause (codes defined in SEEDING.md) |
 | `likelyCause` | `string` | Yes | Qualified, fictional explanation |
 | `recommendedAction` | `string` | Yes | Simulated, advisory-only recommendation |
 | `evidenceSummary` | `string` | Yes | Fictional supporting evidence |

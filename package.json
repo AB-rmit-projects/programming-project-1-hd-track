@@ -19,6 +19,7 @@
     "typecheck": "pnpm -r typecheck",
     "bootstrap": "node scripts/bootstrap.js",
     "validate": "node scripts/validate-placeholders.js",
+    "seed:incidents": "pnpm --filter frontend seed:incidents",
     "hooks": "lefthook install",
     "prepare": "lefthook install"
   },

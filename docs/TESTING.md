@@ -54,6 +54,7 @@ pnpm run test:rules   # needs Java 21+; starts the Firestore emulator, runs, sto
 - Lives in `frontend/tests/rules/*.rules.test.ts` (config: `frontend/vitest.rules.config.ts`); excluded from `pnpm run test:component`.
 - `firebase-tools` is run via `pnpm dlx` at a pinned version, so it isn't in the lockfile.
 - Each test seeds data with `withSecurityRulesDisabled` and calls `clearFirestore()` between tests.
+- `seed-incidents.rules.test.ts` exercises the Phase 3 seed script against the real emulator with the Admin SDK (real `getAll()`/`create()`, ALREADY_EXISTS and stored Timestamps), reads the seeded data back through the rules with the client SDK, and runs the real CLI process end to end. The seed script's pure logic is unit-tested in `frontend/tests/unit/scripts/seed-incidents/` (part of `pnpm run test:component`). See [SEEDING.md](SEEDING.md).
 - Use `assertSucceeds` / `assertFails` around the same modular SDK calls the app makes, and reuse the app's query constraints (`ownIncidentsConstraints`, `actionHistoryConstraints`, `reviewedActionsConstraints`) so the tested query is the shipped query.
 - **Local-only for now:** GitHub CI (`ci.yml`) does not run these tests yet — run `pnpm run test:rules` yourself before pushing rules or query changes. Adding a CI job (Java 21 + `pnpm run test:rules`) is planned for Phase 7, because it requires a workflow change.
 - `pnpm run test:all` does **not** include these tests.
