@@ -3,8 +3,8 @@
 The SafeCall dashboard reads 50 fictional incidents per demo operator from the `incidents` collection. Operators can never create incidents (rules deny every client write), so an administrator populates them with a terminal-only seed script that uses the Firebase Admin SDK.
 
 > **Status**
-> - **Implemented:** the seed script (`frontend/scripts/seed-incidents/`) is implemented and verified against the **local Firestore emulator** only.
-> - **Not done:** **no real Firebase project has been populated.** The script refuses to run against anything except the local emulator. Production seeding is a separate step that needs separate approval and a deliberate code change (see [Production access](#production-access)).
+> - **Implemented:** the seed script (`frontend/scripts/seed-incidents/`) is implemented and verified against the **local Firestore emulator** only. It remains emulator-only and must never target live Firestore.
+> - **Live demo data (23 October 2026):** the live project was populated once, separately, by a controlled one-off tool outside this repository — **not** by this script. See [Live demo data](#live-demo-data-23-october-2026).
 
 ---
 
@@ -139,12 +139,18 @@ Re-running is always safe. A partially populated dataset is completed without to
 
 Production seeding is **disabled in code**. The `FIRESTORE_EMULATOR_HOST` requirement, the `demo-` project rule, the credential-variable refusal and the production-flag refusal together mean the script cannot read or write a real Firebase project, even in dry-run mode.
 
-Seeding a real project for the live demo needs, as separate steps with separate approval:
-- a reviewed change that adds an explicit production path (credential handling, project confirmation, owner-UID verification)
-- the operator's real Auth UID
-- a dry run against that project, then the write
+This script is not a production tool. Do not point it at live Firestore; enabling that would need a separately reviewed and approved change.
 
-Until then, the dashboard's unseeded-account empty state is what a real project shows.
+### Live demo data (23 October 2026)
+
+The live demo data was created without changing this script:
+
+- The project owner deployed the tested `firebase/firestore.rules` to `programming-project-1-hd-track`.
+- A separately controlled one-off administrative tool, kept outside this repository, created exactly **50** fictional records (`isSimulated: true`) from this dataset for the designated demo operator. It ran a dry run first, created documents only (never updating or deleting), was pinned to that project and operator, and needed separate approval for each live step. Its source, credentials and reports are not part of the repository.
+- A read-only verification then confirmed exactly the expected 50 records, the owner identity, no action logs for that operator, and dashboard counts of 50 total / 50 awaiting / 0 reviewed. The real Next.js `/dashboard` was observed rendering the 50 records.
+- The temporary service-account key, service account and custom IAM role were then removed.
+
+This records a dated verification milestone, not the current contents of the database: the counts change once operators record decisions (Phase 5). Operators without incidents still see the dashboard's zero-incident empty state. Re-seeding or cleaning up the live data would need a new, separately approved procedure.
 
 ---
 

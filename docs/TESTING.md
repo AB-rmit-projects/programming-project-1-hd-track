@@ -39,6 +39,7 @@ pnpm --filter backend run test:coverage
 - **Skip:** shadcn `src/components/ui/` components (not hand-authored)
 - **Skip:** `src/app/` page files (test via integration or E2E)
 - Firebase is always mocked via `tests/setup.ts` — never call real Firebase in unit tests
+- SafeCall dashboard (`tests/unit/features/incidents/`): `incidentRow` and `reviewSummary` test the parsing and counting with the Phase 3 fixtures (50 / 50 / 0, 50 / 49 / 1). `useIncidentDashboard` mocks `firebase/firestore` and `@/lib/firebase/client` itself (the setup mock is too thin for it) and covers readiness, offline/stale, errors, integrity, owner isolation and listener/timer cleanup. `IncidentDashboard` mocks `useAuth` and the hook and covers every UI state, the tabs and keyboard, and the links
 
 ### Backend
 
@@ -55,6 +56,7 @@ pnpm run test:rules   # needs Java 21+; starts the Firestore emulator, runs, sto
 - `firebase-tools` is run via `pnpm dlx` at a pinned version, so it isn't in the lockfile.
 - Each test seeds data with `withSecurityRulesDisabled` and calls `clearFirestore()` between tests.
 - `seed-incidents.rules.test.ts` exercises the Phase 3 seed script against the real emulator with the Admin SDK (real `getAll()`/`create()`, ALREADY_EXISTS and stored Timestamps), reads the seeded data back through the rules with the client SDK, and runs the real CLI process end to end. The seed script's pure logic is unit-tested in `frontend/tests/unit/scripts/seed-incidents/` (part of `pnpm run test:component`). See [SEEDING.md](SEEDING.md).
+- `dashboard.rules.test.ts` seeds 50 incidents with the real Phase 3 seed runner, runs the dashboard's two queries as a verified operator, and checks the real parsing and counting. It covers 50 / 50 / 0, then 50 / 49 / 1 after a REVIEWED log created through the rules, with ACKNOWLEDGE/ESCALATE and duplicates. It also checks that another operator's data is never returned, that anonymous and unverified operators are denied, the zero-incident case, the `isSimulated` rejection, and a live `onSnapshot` update. It does not run the React hook itself. Passing locally does **not** show that these rules are deployed to a real project.
 - Use `assertSucceeds` / `assertFails` around the same modular SDK calls the app makes, and reuse the app's query constraints (`ownIncidentsConstraints`, `actionHistoryConstraints`, `reviewedActionsConstraints`) so the tested query is the shipped query.
 - **Local-only for now:** GitHub CI (`ci.yml`) does not run these tests yet — run `pnpm run test:rules` yourself before pushing rules or query changes. Adding a CI job (Java 21 + `pnpm run test:rules`) is planned for Phase 7, because it requires a workflow change.
 - `pnpm run test:all` does **not** include these tests.

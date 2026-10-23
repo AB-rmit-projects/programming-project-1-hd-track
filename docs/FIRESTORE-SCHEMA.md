@@ -50,10 +50,10 @@ This enables **lazy migration** — when a document is read, check `_schemaVersi
 
 ## `incidents` collection (SafeCall)
 
-> **Status:** the schema, rules and types below are implemented (Phase 2). The administrator seed script is implemented (Phase 3) and verified against the local Firestore emulator only — see [SEEDING.md](SEEDING.md). **No real Firebase project has been populated with incidents yet**; production seeding is a separate, approved step.
+> **Status:** the schema, rules and types below are implemented (Phase 2). The administrator seed script is implemented (Phase 3) and is emulator-only — see [SEEDING.md](SEEDING.md). **Live milestone (23 October 2026):** the project owner deployed the tested rules to `programming-project-1-hd-track`, and exactly 50 fictional, simulated incidents were created there for the designated demo operator by a separately controlled one-off tool outside this repository — see [SEEDING.md → Live demo data](SEEDING.md#live-demo-data-23-october-2026).
 
 **Path:** `/incidents/{incidentId}` — seed IDs are deterministic: `{ownerUid}_{incidentCode}` (e.g. `abc123_INC-001`)
-**Access:** verified owner may **read** only. All client creates/updates/deletes are denied — incidents are written only by the administrator seed script via the Admin SDK (which bypasses rules).
+**Access:** verified owner may **read** only. All client creates/updates/deletes are denied — incidents are written only by administrator tooling via the Admin SDK (which bypasses rules): the Phase 3 seed script against the emulator, and the one-off live-demo tool described in SEEDING.md.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -92,3 +92,16 @@ No other fields are accepted (`keys().hasOnly(...)`).
 **Queries:**
 - History: `actionHistoryConstraints(uid, incidentId)` → `ownerUid ==`, `incidentId ==`, `orderBy(createdAt, desc)`. Needs composite index `actionLogs (ownerUid ASC, incidentId ASC, createdAt DESC)` in `firebase/firestore.indexes.json`.
 - Review counts: `reviewedActionsConstraints(uid)` → `ownerUid ==`, `actionType == 'REVIEWED'` (equality filters only; served by single-field indexes). An incident is *reviewed* when at least one REVIEWED log exists; everything else awaits completion.
+
+## Dashboard reads (SafeCall Screen A, Phase 4)
+
+`/dashboard` (`frontend/src/features/incidents/`) reads in the browser through the client SDK, so the security rules decide what the operator sees. It never writes: it doesn't create incidents and doesn't record operator decisions (Phase 5 adds the action-log form).
+
+- **Exactly two live `onSnapshot` listeners**, both owner-scoped before they start: `query(getIncidentsCollection(), ...ownIncidentsConstraints(uid))` and `query(getActionLogsCollection(), ...reviewedActionsConstraints(uid))`. Only REVIEWED logs are downloaded. Both use equality filters only, so no composite index is expected. The emulator ignores indexes, but on 23 October 2026 both queries ran successfully against the live project. That shows these two queries work there as written; any new or changed query (such as Phase 5's history query) still needs its own index check.
+- **Counts:** reviewed = number of *distinct* incident IDs with at least one REVIEWED log that refers to an incident in the operator's queue. ACKNOWLEDGE and ESCALATE never count, repeated REVIEWED logs count once, and logs for other incident IDs are ignored. Awaiting review = total − reviewed (`deriveReviewSummary`).
+- **Order and filters:** sorted in the browser over the operator's own rows (50 for a seeded operator), so there's no `orderBy` and no index: awaiting review first, then oldest `lastSignalAt`, missing times last, then `incidentCode`, then document ID. The All / Awaiting review / Reviewed tabs filter the loaded rows. They don't run queries.
+- **Readiness:** counts appear only once *both* listeners have had a server-confirmed snapshot (`includeMetadataChanges`, `fromCache === false`). An empty cached result is never shown as "no incidents". There are five other states. *Loading*: still waiting. *Offline*: not confirmed within 15 s, with Retry. *Stale*: confirmed earlier, now cached, so the data stays with a warning. *Error*: either listener failed, so no counts. *Integrity error*: any incident with `isSimulated !== true` hides the whole queue.
+- **Live refresh:** a REVIEWED log created later (Phase 5) arrives through the second listener and the counts update without a reload.
+- **Zero incidents:** a verified operator with no incidents gets a server-confirmed empty result: 0 / 0 / 0 and an "ask the administrator" empty state, with no create control.
+- **Live data:** at the 23 October 2026 milestone, the live project held the 50 fictional incidents for the designated demo operator, and the real dashboard was observed showing them as 50 / 50 / 0 ([SEEDING.md → Live demo data](SEEDING.md#live-demo-data-23-october-2026)). That is a dated observation, not a guarantee: the counts change once decisions are recorded (Phase 5). Any other operator has no incidents and gets the zero-incident state above.
+- Each row links to `/dashboard/incidents/{encodeURIComponent(id)}` (Phase 5 route, not built yet) with `prefetch={false}`.
