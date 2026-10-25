@@ -134,7 +134,7 @@ export async function createNote(input: unknown): Promise<ActionResult<string>> 
 
   const parsed = createNoteSchema.safeParse(input)
   if (!parsed.success) {
-    return { success: false, error: parsed.error.errors[0]?.message ?? 'Invalid input' }
+    return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
   }
 
   try {
@@ -438,7 +438,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
     const parsed = createNoteSchema.safeParse(req.body)
     if (!parsed.success) {
-      return next(HttpError.badRequest(parsed.error.errors[0]?.message ?? 'Invalid input'))
+      return next(HttpError.badRequest(parsed.error.issues[0]?.message ?? 'Invalid input'))
     }
 
     const ref = adminDb.collection('notes').doc()
