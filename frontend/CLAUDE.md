@@ -94,7 +94,7 @@ export async function updateProfile(input: UpdateProfileInput): Promise<ActionRe
   // validate input with zod
   const parsed = updateProfileSchema.safeParse(input)
   if (!parsed.success) {
-    return { success: false, error: parsed.error.errors[0]?.message ?? 'Invalid input' }
+    return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
   }
 
   try {

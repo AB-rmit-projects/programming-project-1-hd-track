@@ -39,6 +39,18 @@ describe('actionLogInputSchema', () => {
     expect(result.error?.issues[0]?.message).toBe('Enter between 10 and 500 characters.')
   })
 
+  it('counts length in UTF-16 code units, as the rules size() does', () => {
+    const emoji = '😀' // 2 code units, 1 code point
+    expect(actionLogInputSchema.safeParse({ ...valid, note: emoji.repeat(5) }).success).toBe(true)
+    expect(actionLogInputSchema.safeParse({ ...valid, note: emoji.repeat(250) }).success).toBe(true)
+    expect(actionLogInputSchema.safeParse({ ...valid, note: `${emoji.repeat(4)}a` }).success).toBe(
+      false
+    )
+    expect(
+      actionLogInputSchema.safeParse({ ...valid, note: `${emoji.repeat(250)}a` }).success
+    ).toBe(false)
+  })
+
   it('returns the trimmed note, which is what the Firestore rules require', () => {
     const result = actionLogInputSchema.safeParse({ ...valid, note: '  Checked the evidence.  \n' })
     expect(result.success && result.data.note).toBe('Checked the evidence.')

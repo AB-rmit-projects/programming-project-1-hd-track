@@ -24,6 +24,14 @@ overrides:
   # test tooling only, via vitest and @vitejs/plugin-react). Review this
   # override during the next dependency update.
   vite: 7.3.7
+  # GHSA-27r3-jxmh-p828 (body-parser DoS: a compressed body with trailing bytes
+  # crashes the process). Fixed in 1.20.9 and 2.4.0, both inside the ranges
+  # express 4 (~1.20.5, via firebase-functions) and express 5 (^2.2.1) already
+  # allow; `pnpm update` would also have moved unrelated packages. Each entry
+  # matches one major only, so express 4 keeps body-parser 1.x. Remove once
+  # both express lines resolve the patched versions on their own.
+  'body-parser@>=1.0.0 <1.20.9': '^1.20.9'
+  'body-parser@>=2.0.0 <2.4.0': '^2.4.0'
 
 auditConfig:
   ignoreGhsas:
