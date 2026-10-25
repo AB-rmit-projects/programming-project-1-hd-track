@@ -138,7 +138,7 @@ Security is enforced in independent layers — Claude Code guard hooks, HTTP har
 |----------|---------|-------------------|-------------|
 | [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) | `braces` ≤3.0.3 | No patched version is published. Reached only via `eslint-config-next` → `@next/eslint-plugin-next` → `fast-glob@3.3.1` (pinned) → `micromatch` — lint-time only, never shipped to the app. | `braces` ≥3.0.4, or a `fast-glob`/`eslint-config-next` release without it, is published |
 
-Every other advisory still fails the job. One scoped override also exists for a security fix: `@firebase/firestore>@grpc/grpc-js` (Firebase's client SDK pins a grpc-js line with no patched release).
+Every other advisory still fails the job. Scoped overrides also exist for security fixes: `@firebase/firestore>@grpc/grpc-js` (Firebase's client SDK pins a grpc-js line with no patched release), and two `body-parser` entries for GHSA-27r3-jxmh-p828 (one per major, keeping express 4 on 1.x and express 5 on 2.x). The comments in `pnpm-workspace.yaml` say when each can be removed.
 
 ## Git Workflow
 

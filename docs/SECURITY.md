@@ -140,7 +140,7 @@ const schema = z.object({
 
 const parsed = schema.safeParse(req.body)
 if (!parsed.success) {
-  return next(HttpError.badRequest(parsed.error.errors[0]?.message ?? 'Invalid input'))
+  return next(HttpError.badRequest(parsed.error.issues[0]?.message ?? 'Invalid input'))
 }
 // use parsed.data — fully typed, no unknown fields
 ```

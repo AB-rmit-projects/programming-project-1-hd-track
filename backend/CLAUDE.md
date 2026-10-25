@@ -76,7 +76,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
     const parsed = createItemSchema.safeParse(req.body)
     if (!parsed.success) {
-      return next(HttpError.badRequest(parsed.error.errors[0]?.message ?? 'Invalid input'))
+      return next(HttpError.badRequest(parsed.error.issues[0]?.message ?? 'Invalid input'))
     }
 
     const ref = adminDb.collection('items').doc()
