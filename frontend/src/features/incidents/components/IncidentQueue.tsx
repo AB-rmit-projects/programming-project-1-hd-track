@@ -3,9 +3,10 @@ import { formatDatetime } from '@/lib/utils'
 import { CAUSE_CATEGORY_LABELS, FALLBACK_LABELS } from '@/features/incidents/labels'
 import type { ReviewedIncidentRow } from '@/features/incidents/types'
 import { IncidentStatusBadge, ReviewStatusBadge } from './IncidentBadges'
+import { Text } from './MissingValue'
 
 /**
- * Phase 5 builds this route; the ID is encoded so any document ID is a safe path segment.
+ * The incident detail route (Phase 5); the ID is encoded so any document ID is a safe path segment.
  * The links use prefetch={false}: prefetching each visible incident would run the
  * (dashboard) layout's session check (a Firebase revocation lookup) per link.
  */
@@ -15,20 +16,6 @@ export function incidentHref(id: string): string {
 
 function linkLabel(row: ReviewedIncidentRow): string {
   return `Open incident ${row.incidentCode ?? 'with missing code'}`
-}
-
-/** A missing value: "—" on screen, a word for screen readers. */
-function Missing() {
-  return (
-    <>
-      <span aria-hidden="true">{FALLBACK_LABELS.text}</span>
-      <span className="sr-only">Not recorded</span>
-    </>
-  )
-}
-
-function Text({ value }: { value: string | null }) {
-  return value ?? <Missing />
 }
 
 function Location({ row }: { row: ReviewedIncidentRow }) {

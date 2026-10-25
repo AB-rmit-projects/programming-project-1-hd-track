@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { onSnapshot, Timestamp, type FirestoreError } from 'firebase/firestore'
+import { FirestoreError, onSnapshot, Timestamp } from 'firebase/firestore'
 import { getClientDb } from '@/lib/firebase/client'
 import {
   SERVER_CONFIRMATION_TIMEOUT_MS,
@@ -59,9 +59,20 @@ const ALICE = 'alice-uid'
 const BOB = 'bob-uid'
 const NOW = new Date('2026-10-21T00:00:00.000Z')
 
+interface DocMetadata {
+  hasPendingWrites: boolean
+  fromCache: boolean
+}
+
+/**
+ * A query-snapshot document. Like a real QueryDocumentSnapshot, every document
+ * delivered to a listener has its own metadata: `snapshot()` fills it in from
+ * the query snapshot unless a fixture sets it (as `pendingLogDoc` does).
+ */
 interface FakeDoc {
   id: string
   data: () => Record<string, unknown>
+  metadata?: DocMetadata
 }
 
 /** The 50 Phase 3 incidents for an owner, as the client SDK returns them. */
@@ -76,13 +87,44 @@ function seededDocs(owner: string): FakeDoc[] {
   })
 }
 
+// Like every client-created log, it carries the server-set createdAt.
+const LOGGED_AT = Timestamp.fromDate(new Date('2026-10-24T01:00:00Z'))
+
 function logDoc(owner: string, actionType: ActionType, code: string, n = 0): FakeDoc {
-  const stored = { ownerUid: owner, incidentId: `${owner}_${code}`, actionType }
+  const stored = {
+    ownerUid: owner,
+    incidentId: `${owner}_${code}`,
+    actionType,
+    createdAt: LOGGED_AT,
+  }
   return { id: `log-${code}-${actionType}-${n}`, data: () => stored }
 }
 
+/** The same log as written locally and not yet accepted by the server. */
+function pendingLogDoc(owner: string, actionType: ActionType, code: string, n = 0): FakeDoc {
+  return {
+    ...logDoc(owner, actionType, code, n),
+    metadata: { hasPendingWrites: true, fromCache: false },
+  }
+}
+
+/**
+ * A query snapshot as the SDK delivers it: each document carries metadata, and
+ * the query's own `hasPendingWrites` is true when any of its documents is pending.
+ */
 function snapshot(docs: FakeDoc[], { fromCache = false } = {}) {
-  return { docs, empty: docs.length === 0, metadata: { fromCache, hasPendingWrites: false } }
+  const withMetadata = docs.map((doc) => ({
+    ...doc,
+    metadata: doc.metadata ?? { hasPendingWrites: false, fromCache },
+  }))
+  return {
+    docs: withMetadata,
+    empty: docs.length === 0,
+    metadata: {
+      fromCache,
+      hasPendingWrites: withMetadata.some((d) => d.metadata.hasPendingWrites),
+    },
+  }
 }
 
 function firestoreError(code: string): FirestoreError {
@@ -256,6 +298,168 @@ describe('useIncidentDashboard — live review counts', () => {
       logDoc(ALICE, 'ESCALATE', 'INC-002'),
     ])
     expect(counts(result.current)).toEqual({ total: 50, awaiting: 50, reviewed: 0 })
+  })
+})
+
+describe('useIncidentDashboard — only server-accepted REVIEWED logs count', () => {
+  /** Renders the hook and records the reviewed count of every render. */
+  function renderRecording(uid: string) {
+    const reviewedPerRender: Array<number | null> = []
+    const hook = renderHook(
+      ({ uid }: { uid: string }) => {
+        const state = useIncidentDashboard(uid)
+        reviewedPerRender.push(state.summary?.reviewed ?? null)
+        return state
+      },
+      { initialProps: { uid } }
+    )
+    return { ...hook, reviewedPerRender }
+  }
+
+  it('a REVIEWED log still waiting for the server does not count', () => {
+    const { result } = renderDashboard(ALICE)
+    confirmBoth(seededDocs(ALICE))
+
+    push('actionLogs', [pendingLogDoc(ALICE, 'REVIEWED', 'INC-007')])
+
+    expect(result.current.status).toBe('ready')
+    expect(counts(result.current)).toEqual({ total: 50, awaiting: 50, reviewed: 0 })
+  })
+
+  it('once the server accepts it (a metadata-only change), it counts, without re-subscribing', () => {
+    const { result } = renderDashboard(ALICE)
+    confirmBoth(seededDocs(ALICE))
+    const pending = pendingLogDoc(ALICE, 'REVIEWED', 'INC-007')
+    push('actionLogs', [pending])
+    expect(counts(result.current)).toEqual({ total: 50, awaiting: 50, reviewed: 0 })
+
+    // Same document and data; only its metadata changes, as the SDK reports an acknowledged write.
+    push('actionLogs', [{ ...pending, metadata: { hasPendingWrites: false, fromCache: false } }])
+
+    expect(counts(result.current)).toEqual({ total: 50, awaiting: 49, reviewed: 1 })
+    const reviewed = result.current.summary?.rows.find((row) => row.id === `${ALICE}_INC-007`)
+    expect(reviewed?.reviewStatus).toBe('REVIEWED')
+    expect(onSnapshot).toHaveBeenCalledTimes(2)
+  })
+
+  it('a pending write the server rejects never counts, in any render', () => {
+    const { result, reviewedPerRender } = renderRecording(ALICE)
+    confirmBoth(seededDocs(ALICE))
+
+    push('actionLogs', [pendingLogDoc(ALICE, 'REVIEWED', 'INC-007')])
+    push('actionLogs', []) // the SDK drops a rejected write from the results
+
+    expect(result.current.status).toBe('ready')
+    expect(counts(result.current)).toEqual({ total: 50, awaiting: 50, reviewed: 0 })
+    expect(reviewedPerRender.filter((n) => n !== null)).not.toHaveLength(0)
+    expect(reviewedPerRender.every((n) => n === null || n === 0)).toBe(true)
+  })
+
+  it('in a mixed snapshot, only confirmed logs count, distinct incidents once each', () => {
+    const { result } = renderDashboard(ALICE)
+    confirmBoth(seededDocs(ALICE))
+
+    push('actionLogs', [
+      logDoc(ALICE, 'REVIEWED', 'INC-001'),
+      pendingLogDoc(ALICE, 'REVIEWED', 'INC-002'),
+      logDoc(ALICE, 'REVIEWED', 'INC-003', 1),
+      logDoc(ALICE, 'REVIEWED', 'INC-003', 2),
+      pendingLogDoc(ALICE, 'REVIEWED', 'INC-001', 2), // pending duplicate of a confirmed incident
+      pendingLogDoc(ALICE, 'REVIEWED', 'INC-004'),
+    ])
+
+    expect(counts(result.current)).toEqual({ total: 50, awaiting: 48, reviewed: 2 })
+    const reviewedIds = result.current.summary?.rows
+      .filter((row) => row.reviewStatus === 'REVIEWED')
+      .map((row) => row.id)
+      .sort()
+    expect(reviewedIds).toEqual([`${ALICE}_INC-001`, `${ALICE}_INC-003`])
+  })
+
+  it('a confirmed incident stays counted once when its pending duplicate is later confirmed', () => {
+    const { result } = renderDashboard(ALICE)
+    confirmBoth(seededDocs(ALICE))
+    const confirmed = logDoc(ALICE, 'REVIEWED', 'INC-005', 1)
+    const pending = pendingLogDoc(ALICE, 'REVIEWED', 'INC-005', 2)
+
+    push('actionLogs', [confirmed, pending])
+    expect(counts(result.current)?.reviewed).toBe(1)
+
+    push('actionLogs', [
+      confirmed,
+      { ...pending, metadata: { hasPendingWrites: false, fromCache: false } },
+    ])
+    expect(counts(result.current)).toEqual({ total: 50, awaiting: 49, reviewed: 1 })
+  })
+
+  it('a pending log in the first server-current snapshot neither blocks readiness nor counts', () => {
+    const { result } = renderDashboard(ALICE)
+    confirmBoth(seededDocs(ALICE), [pendingLogDoc(ALICE, 'REVIEWED', 'INC-001')])
+
+    expect(result.current.status).toBe('ready')
+    expect(counts(result.current)).toEqual({ total: 50, awaiting: 50, reviewed: 0 })
+    expect(vi.getTimerCount()).toBe(0) // the query itself was confirmed by the server
+  })
+
+  it('a pending log in a cache-only snapshot does not confirm the query (offline write)', () => {
+    const { result } = renderDashboard(ALICE)
+    push('incidents', seededDocs(ALICE))
+    push('actionLogs', [pendingLogDoc(ALICE, 'REVIEWED', 'INC-001')], { fromCache: true })
+
+    expect(result.current.status).toBe('loading')
+    expect(result.current.summary).toBeNull()
+    act(() => vi.advanceTimersByTime(SERVER_CONFIRMATION_TIMEOUT_MS))
+    expect(result.current.status).toBe('offline')
+  })
+
+  it('stale data keeps counting confirmed logs and still excludes pending ones', () => {
+    const { result } = renderDashboard(ALICE)
+    confirmBoth(seededDocs(ALICE), [logDoc(ALICE, 'REVIEWED', 'INC-001')])
+
+    push(
+      'actionLogs',
+      [logDoc(ALICE, 'REVIEWED', 'INC-001'), pendingLogDoc(ALICE, 'REVIEWED', 'INC-002')],
+      { fromCache: true }
+    )
+
+    expect(result.current.status).toBe('stale')
+    expect(counts(result.current)).toEqual({ total: 50, awaiting: 49, reviewed: 1 })
+  })
+
+  it("after a UID change, the previous owner's late write confirmation is ignored", () => {
+    const { result, rerender } = renderDashboard(ALICE)
+    confirmBoth(seededDocs(ALICE), [pendingLogDoc(ALICE, 'REVIEWED', 'INC-001')])
+    const aliceReviewed = listenerFor('actionLogs')
+    rerender({ uid: BOB })
+    confirmBoth(seededDocs(BOB))
+
+    act(() => aliceReviewed.next(snapshot([logDoc(ALICE, 'REVIEWED', 'INC-001')])))
+
+    expect(result.current.ownerUid).toBe(BOB)
+    expect(counts(result.current)).toEqual({ total: 50, awaiting: 50, reviewed: 0 })
+  })
+})
+
+describe('useIncidentDashboard — logs the detail history can never show', () => {
+  it('a confirmed REVIEWED log with no createdAt does not count; valid ones and duplicates still do', () => {
+    const { result } = renderDashboard(ALICE)
+    confirmBoth(seededDocs(ALICE))
+    const noTimestamp = logDoc(ALICE, 'REVIEWED', 'INC-009')
+    const stored = { ...noTimestamp.data() }
+    delete stored.createdAt // a privileged write without the server timestamp
+
+    push('actionLogs', [
+      { id: noTimestamp.id, data: () => stored },
+      logDoc(ALICE, 'REVIEWED', 'INC-001', 1),
+      logDoc(ALICE, 'REVIEWED', 'INC-001', 2),
+      logDoc(ALICE, 'ACKNOWLEDGE', 'INC-002'),
+    ])
+
+    expect(counts(result.current)).toEqual({ total: 50, awaiting: 49, reviewed: 1 })
+    const status = (code: string) =>
+      result.current.summary?.rows.find((row) => row.id === `${ALICE}_${code}`)?.reviewStatus
+    expect(status('INC-009')).toBe('AWAITING_REVIEW')
+    expect(status('INC-001')).toBe('REVIEWED')
   })
 })
 
@@ -587,6 +791,39 @@ describe('useIncidentDashboard — a failed Firestore client (synchronous SDK th
     expect(result.current.error?.code).toBe('internal')
     expect(result.current.error?.message).not.toMatch(/ASSERTION|b815/) // raw SDK text is not passed on
     expect(result.current.summary).toBeNull()
+  })
+
+  it('a Firestore error thrown synchronously keeps its code, but not its message', () => {
+    // The SDK's own FirestoreError class (its constructor is private in the typings).
+    const SdkFirestoreError = FirestoreError as unknown as new (
+      code: string,
+      message: string
+    ) => Error
+    const throwPermissionDenied = () => {
+      throw new SdkFirestoreError('permission-denied', 'Raw SDK text that must not reach the UI.')
+    }
+    vi.mocked(onSnapshot)
+      .mockImplementationOnce(throwPermissionDenied)
+      .mockImplementationOnce(throwPermissionDenied)
+
+    const { result } = renderDashboard(ALICE)
+
+    expect(result.current.status).toBe('error')
+    expect(result.current.error).toEqual({
+      code: 'permission-denied',
+      message: 'The Firestore client could not start a listener.',
+    })
+    expect(result.current.summary).toBeNull()
+  })
+
+  it('an asynchronous listener error is still reported exactly as the listener delivered it', () => {
+    const { result } = renderDashboard(ALICE)
+    const delivered = firestoreError('permission-denied')
+
+    act(() => listenerFor('incidents').error(delivered))
+
+    expect(result.current.status).toBe('error')
+    expect(result.current.error).toBe(delivered) // not reclassified (unchanged since Phase 4)
   })
 
   it('if only the second listener fails to start, the first is still stopped on unmount', () => {

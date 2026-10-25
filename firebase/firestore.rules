@@ -96,7 +96,7 @@ service cloud.firestore {
           && isValidNote(data.note)
           && data.createdAt == request.time          // only serverTimestamp() matches
           && data._schemaVersion == 1
-          && isOwnIncident(data.incidentId);
+          && isOwnSimulatedIncident(data.incidentId);
       }
 
       // Already trimmed (no leading/trailing whitespace) and 10–500 characters.
@@ -107,12 +107,14 @@ service cloud.firestore {
           && note.size() <= 500;
       }
 
-      // The referenced incident exists and belongs to the same operator.
-      function isOwnIncident(incidentId) {
+      // The referenced incident exists, belongs to the same operator and is
+      // simulated demonstration data. A missing isSimulated counts as false.
+      function isOwnSimulatedIncident(incidentId) {
         return incidentId is string
           && incidentId.matches('[A-Za-z0-9_-]{1,128}')
           && exists(incidentPath(incidentId))
-          && get(incidentPath(incidentId)).data.ownerUid == request.auth.uid;
+          && get(incidentPath(incidentId)).data.ownerUid == request.auth.uid
+          && get(incidentPath(incidentId)).data.get('isSimulated', false) == true;
       }
     }
 

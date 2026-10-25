@@ -1,11 +1,13 @@
 // @vitest-environment node
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Timestamp } from 'firebase/firestore'
 import { parseIncident } from '@/features/incidents/incidentRow'
 import {
   compareQueueOrder,
+  confirmedReviewEvidence,
   deriveReviewSummary,
   filterByTab,
+  type ActionLogSnapshotDoc,
   type ReviewEvidence,
 } from '@/features/incidents/reviewSummary'
 import type { IncidentRow, ReviewStatus, ReviewedIncidentRow } from '@/features/incidents/types'
@@ -251,5 +253,86 @@ describe('inputs are never modified', () => {
     for (const tab of ['ALL', 'AWAITING_REVIEW', 'REVIEWED'] as const) filterByTab(frozen, tab)
 
     expect(ids(frozen)).toEqual(before)
+  })
+})
+
+describe('confirmedReviewEvidence', () => {
+  function snapshotDoc(code: string, hasPendingWrites: boolean): ActionLogSnapshotDoc {
+    return {
+      metadata: { hasPendingWrites },
+      data: vi.fn(() => ({
+        incidentId: incidentId(code),
+        actionType: 'REVIEWED' as const,
+        createdAt: Timestamp.fromDate(new Date('2026-10-24T01:00:00Z')),
+      })),
+    }
+  }
+
+  it('keeps server-accepted documents in order and drops pending ones', () => {
+    const docs = [
+      snapshotDoc('INC-003', false),
+      snapshotDoc('INC-001', true),
+      snapshotDoc('INC-002', false),
+    ]
+    expect(confirmedReviewEvidence(docs)).toEqual([
+      { incidentId: incidentId('INC-003'), actionType: 'REVIEWED' },
+      { incidentId: incidentId('INC-002'), actionType: 'REVIEWED' },
+    ])
+    expect(docs[1]!.data).not.toHaveBeenCalled()
+  })
+
+  it('returns only the two fields the counts depend on', () => {
+    const doc: ActionLogSnapshotDoc = {
+      metadata: { hasPendingWrites: false },
+      data: () =>
+        ({
+          incidentId: incidentId('INC-001'),
+          actionType: 'REVIEWED',
+          ownerUid: OWNER,
+          note: 'Checked the simulated outage evidence.',
+          createdAt: Timestamp.fromDate(new Date('2026-10-24T01:00:00Z')),
+        }) as ReviewEvidence,
+    }
+    expect(confirmedReviewEvidence([doc])).toEqual([
+      { incidentId: incidentId('INC-001'), actionType: 'REVIEWED' },
+    ])
+  })
+
+  it('drops a confirmed log with no createdAt field — the ordered history query can never return it', () => {
+    const missing: ActionLogSnapshotDoc = {
+      metadata: { hasPendingWrites: false },
+      data: () => ({ incidentId: incidentId('INC-001'), actionType: 'REVIEWED' }),
+    }
+    expect(confirmedReviewEvidence([missing, snapshotDoc('INC-002', false)])).toEqual([
+      { incidentId: incidentId('INC-002'), actionType: 'REVIEWED' },
+    ])
+  })
+
+  it.each([
+    ['null', null],
+    ['a string', '2026-10-24T01:00:00Z'],
+    ['a number', 1761267600],
+  ])(
+    'keeps a log whose createdAt is present but %s — Firestore still includes it in the ordered history',
+    (_label, createdAt) => {
+      const doc: ActionLogSnapshotDoc = {
+        metadata: { hasPendingWrites: false },
+        data: () => ({ incidentId: incidentId('INC-001'), actionType: 'REVIEWED', createdAt }),
+      }
+      expect(confirmedReviewEvidence([doc])).toHaveLength(1)
+    }
+  )
+
+  it('is empty when every document is pending, and for an empty snapshot', () => {
+    expect(confirmedReviewEvidence([snapshotDoc('INC-001', true)])).toEqual([])
+    expect(confirmedReviewEvidence([])).toEqual([])
+  })
+
+  it('feeds deriveReviewSummary so a pending REVIEWED log leaves the counts at 50 / 50 / 0', () => {
+    const summary = deriveReviewSummary(
+      SEED_ROWS,
+      confirmedReviewEvidence([snapshotDoc('INC-001', true)])
+    )
+    expect(summary).toMatchObject({ total: 50, awaiting: 50, reviewed: 0 })
   })
 })

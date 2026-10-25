@@ -26,7 +26,11 @@ import {
   reviewedActionsConstraints,
 } from '@/lib/firebase/firestore'
 import { parseIncident } from '@/features/incidents/incidentRow'
-import { deriveReviewSummary } from '@/features/incidents/reviewSummary'
+import {
+  confirmedReviewEvidence,
+  deriveReviewSummary,
+  type ReviewEvidence,
+} from '@/features/incidents/reviewSummary'
 import type { ActionType } from '@/types/firestore'
 import {
   ALICE,
@@ -348,6 +352,103 @@ describe('dashboard data — live listeners (the Phase 5 refresh path)', () => {
     } finally {
       stopIncidents()
       stopReviewed()
+    }
+  })
+})
+
+describe('dashboard data — unconfirmed writes (real SDK metadata, Phase 5 CP2)', () => {
+  // The client SDK shows a new document in query results as soon as it is
+  // written locally, marked hasPendingWrites, before the server has answered.
+  // These run the dashboard's REVIEWED query and its real filter
+  // (confirmedReviewEvidence) over every snapshot the SDK delivers.
+
+  const options = { includeMetadataChanges: true }
+
+  function reviewedCount(incidents: QuerySnapshot, reviewed: QuerySnapshot) {
+    const rows = incidents.docs.flatMap((d) => {
+      const parsed = parseIncident(d.id, d.data())
+      return parsed.ok ? [parsed.row] : []
+    })
+    // The emulator context's queries are untyped; keep each document's real
+    // SDK metadata and type only its data, as getActionLogsCollection() does.
+    const docs = reviewed.docs.map((d) => ({
+      metadata: d.metadata,
+      data: () => d.data() as ReviewEvidence,
+    }))
+    return deriveReviewSummary(rows, confirmedReviewEvidence(docs)).reviewed
+  }
+
+  it('a REVIEWED log counts only after the server accepts it, through a metadata change', async () => {
+    const db = verifiedUser(env, ALICE)
+    const incidents = await getDocs(incidentsQuery(db, ALICE))
+    const snaps: QuerySnapshot[] = []
+    const stop = onSnapshot(reviewedQuery(db, ALICE), options, (s: QuerySnapshot) => snaps.push(s))
+
+    try {
+      await vi.waitFor(() => expect(snaps.some((s) => !s.metadata.fromCache)).toBe(true), {
+        timeout: 10_000,
+      })
+      const write = addDoc(
+        collection(db, ACTION_LOGS_COLLECTION),
+        validActionLog({
+          ownerUid: ALICE,
+          incidentId: incidentId(ALICE, 'INC-005'),
+          actionType: 'REVIEWED',
+        })
+      )
+
+      await assertSucceeds(write)
+      await vi.waitFor(
+        () => {
+          const latest = snaps.at(-1)!
+          expect(latest.size).toBe(1)
+          expect(latest.docs[0]!.metadata.hasPendingWrites).toBe(false)
+        },
+        { timeout: 10_000 }
+      )
+
+      // The SDK did deliver the log while it was pending, and it did not count then.
+      const pendingSnaps = snaps.filter((s) => s.docs.some((d) => d.metadata.hasPendingWrites))
+      expect(pendingSnaps.length).toBeGreaterThan(0)
+      for (const s of pendingSnaps) expect(reviewedCount(incidents, s)).toBe(0)
+
+      // Accepted: the same document again with the flag cleared, now counted.
+      const pendingId = pendingSnaps[0]!.docs[0]!.id
+      expect(snaps.at(-1)!.docs[0]!.id).toBe(pendingId)
+      expect(reviewedCount(incidents, snaps.at(-1)!)).toBe(1)
+    } finally {
+      stop()
+    }
+  })
+
+  it('a REVIEWED log the rules reject is shown pending, then dropped, and never counts', async () => {
+    const db = verifiedUser(env, ALICE)
+    const incidents = await getDocs(incidentsQuery(db, ALICE))
+    const snaps: QuerySnapshot[] = []
+    const stop = onSnapshot(reviewedQuery(db, ALICE), options, (s: QuerySnapshot) => snaps.push(s))
+
+    try {
+      await vi.waitFor(() => expect(snaps.some((s) => !s.metadata.fromCache)).toBe(true), {
+        timeout: 10_000,
+      })
+      // A 5-character note: valid in shape, refused by the create rule.
+      await assertFails(
+        addDoc(
+          collection(db, ACTION_LOGS_COLLECTION),
+          validActionLog({
+            ownerUid: ALICE,
+            incidentId: incidentId(ALICE, 'INC-005'),
+            actionType: 'REVIEWED',
+            note: 'short',
+          })
+        )
+      )
+      await vi.waitFor(() => expect(snaps.at(-1)!.size).toBe(0), { timeout: 10_000 })
+
+      expect(snaps.some((s) => s.docs.some((d) => d.metadata.hasPendingWrites))).toBe(true)
+      for (const s of snaps) expect(reviewedCount(incidents, s)).toBe(0)
+    } finally {
+      stop()
     }
   })
 })
