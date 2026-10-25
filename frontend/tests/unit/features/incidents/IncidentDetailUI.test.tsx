@@ -336,7 +336,7 @@ describe('IncidentDetail — incident details', () => {
       lastSignalAt: 'yesterday',
       causeCategory: 'X',
     }
-    confirmBoth({ id: A1.id, data })
+    confirmBoth({ ...A1, data })
 
     expect(
       screen.getByText('This incident record has missing or unexpected fields.')
@@ -350,7 +350,7 @@ describe('IncidentDetail — incident details', () => {
 
   it('a record not marked as simulated fails closed: no details, no form, no simulated label', () => {
     showDetail()
-    confirmBoth({ id: A1.id, data: { ...A1.data, isSimulated: false } })
+    confirmBoth({ ...A1, data: { ...A1.data, isSimulated: false } })
 
     expect(screen.getByRole('alert')).toHaveTextContent('not marked as simulated')
     expect(screen.queryByText(A1.seed.deviceId)).not.toBeInTheDocument()

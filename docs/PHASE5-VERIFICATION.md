@@ -52,7 +52,7 @@ No `INTERNAL ASSERTION FAILED` (`ca9` / `b815`) and no uncaught exception appear
 
 ## Defects found and fixed
 
-1. **Invalid HTML while saving.** React warned "`<div>` cannot be a descendant of `<p>`". The shared `LoadingSpinner` (a `<div role="status">`) was inside a `<p>` and inside the Save `<button>`, adding a second "Loading" status to the live region. `DecisionForm` now uses a decorative `<span aria-hidden>` spinner; the shared component is unchanged. A regression test is in `IncidentDetail.test.tsx`.
+1. **Invalid HTML while saving.** React warned "`<div>` cannot be a descendant of `<p>`". The shared `LoadingSpinner` (a `<div role="status">`) was inside a `<p>` and inside the Save `<button>`, adding a second "Loading" status to the live region. `DecisionForm` now uses a decorative `<span aria-hidden>` spinner; the shared component is unchanged. A regression test is in `IncidentDetailUI.test.tsx`.
 2. **An unresolved save shown without context.** After leaving and returning while a save was pending, a bare "Saving your decision…" line appeared below the loading spinner. That panel (`IncidentDetailView`) now has a heading ("Your decision") and says the decision is still being saved and no other can be recorded until it is confirmed. UI only; the CP4 lock is unchanged. Two regression tests.
 
 ## Findings not fixed (for review)
