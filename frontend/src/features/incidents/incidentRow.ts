@@ -5,7 +5,7 @@ import type { IncidentRow, ParsedIncident } from './types'
 
 type TextField = 'incidentCode' | 'deviceId' | 'suburb' | 'postcode'
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -24,10 +24,22 @@ function isCauseCategory(value: unknown): value is CauseCategory {
  * A Timestamp built from NaN passes the SDK's range checks, so the resulting
  * Date is checked too.
  */
-function toSignalDate(value: unknown): Date | null {
+export function toStoredDate(value: unknown): Date | null {
   if (!(value instanceof Timestamp)) return null
   const date = value.toDate()
   return Number.isNaN(date.getTime()) ? null : date
+}
+
+/** A non-blank string, or null with `field` recorded in `dataIssues`. */
+export function readText<Field extends string>(
+  record: Record<string, unknown>,
+  field: Field,
+  dataIssues: Field[]
+): string | null {
+  const value = record[field]
+  if (typeof value === 'string' && value.trim() !== '') return value
+  dataIssues.push(field)
+  return null
 }
 
 /**
@@ -47,13 +59,7 @@ export function parseIncident(id: string, data: unknown): ParsedIncident {
   }
 
   const dataIssues: IncidentRow['dataIssues'] = []
-
-  const text = (field: TextField): string | null => {
-    const value = record[field]
-    if (typeof value === 'string' && value.trim() !== '') return value
-    dataIssues.push(field)
-    return null
-  }
+  const text = (field: TextField) => readText(record, field, dataIssues)
 
   const incidentCode = text('incidentCode')
   const deviceId = text('deviceId')
@@ -66,7 +72,7 @@ export function parseIncident(id: string, data: unknown): ParsedIncident {
   const causeCategory = isCauseCategory(record.causeCategory) ? record.causeCategory : null
   if (causeCategory === null) dataIssues.push('causeCategory')
 
-  const lastSignalAt = toSignalDate(record.lastSignalAt)
+  const lastSignalAt = toStoredDate(record.lastSignalAt)
   if (lastSignalAt === null) dataIssues.push('lastSignalAt')
 
   return {

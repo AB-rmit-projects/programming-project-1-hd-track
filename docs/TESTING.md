@@ -57,9 +57,28 @@ pnpm run test:rules   # needs Java 21+; starts the Firestore emulator, runs, sto
 - Each test seeds data with `withSecurityRulesDisabled` and calls `clearFirestore()` between tests.
 - `seed-incidents.rules.test.ts` exercises the Phase 3 seed script against the real emulator with the Admin SDK (real `getAll()`/`create()`, ALREADY_EXISTS and stored Timestamps), reads the seeded data back through the rules with the client SDK, and runs the real CLI process end to end. The seed script's pure logic is unit-tested in `frontend/tests/unit/scripts/seed-incidents/` (part of `pnpm run test:component`). See [SEEDING.md](SEEDING.md).
 - `dashboard.rules.test.ts` seeds 50 incidents with the real Phase 3 seed runner, runs the dashboard's two queries as a verified operator, and checks the real parsing and counting. It covers 50 / 50 / 0, then 50 / 49 / 1 after a REVIEWED log created through the rules, with ACKNOWLEDGE/ESCALATE and duplicates. It also checks that another operator's data is never returned, that anonymous and unverified operators are denied, the zero-incident case, the `isSimulated` rejection, and a live `onSnapshot` update. It does not run the React hook itself. Passing locally does **not** show that these rules are deployed to a real project.
+- **Phase 5 decision workflow (CP6):** `incidentDetail.rules.test.ts` and `incidentDetail.hooks.rules.test.ts` run the app's own code against the real rules on the emulator, with nothing mocked except which Firestore instance `getClientDb()` returns. The real client module, which reads the live project's config, is never loaded. That code is the collection helpers, query constraints, the write adapter `startDecisionWrite`, the parsers and derivations, and (second file, jsdom) the hooks `useIncidentDetail`, `useDecisionSubmission` and `useIncidentDashboard` together. Covered:
+  - all three decisions stored with exactly six fields and a server `createdAt`;
+  - the AC-10 count sequence 50/50/0 → 50/49/1 → 50/48/2;
+  - an offline write (`disableNetwork`) that stays pending, unlisted and uncounted until the server accepts it;
+  - a stale incident blocking a new decision;
+  - refusals that store nothing;
+  - rationale boundaries;
+  - a non-simulated incident: the app fails closed, and since the post-CP7 rule change the rules also refuse a decision on it (`actionLogs.rules.test.ts` covers missing, `false`, `"true"`, `1` and `null` flags, and all 50 seed incidents still accept decisions);
+  - the dashboard and the detail page agree on logs without `createdAt`: never listed, never counted; a present value, even `null`, is listed and counted on both.
+
+  Each run starts with `assertEmulatorOnly()`, which requires a loopback `FIRESTORE_EMULATOR_HOST` and the `demo-safecall` project.
+- **Harness notes for network-toggle tests:**
+  - Terminate every client a test used (`terminateClient`).
+  - Clear with `clearEmulator(env)`: after a toggle the emulator can fail the next delete-all once with HTTP 500 ("Stream is already completed").
+  - Don't run a one-shot `getDocs` on a query the same client is listening to after `disableNetwork`/`enableNetwork`. In firebase 11.10 that makes the SDK fail later with `INTERNAL ASSERTION FAILED (ID: ca9)`. Read back from a fresh client instead.
 - Use `assertSucceeds` / `assertFails` around the same modular SDK calls the app makes, and reuse the app's query constraints (`ownIncidentsConstraints`, `actionHistoryConstraints`, `reviewedActionsConstraints`) so the tested query is the shipped query.
 - **Local-only for now:** GitHub CI (`ci.yml`) does not run these tests yet — run `pnpm run test:rules` yourself before pushing rules or query changes. Adding a CI job (Java 21 + `pnpm run test:rules`) is planned for Phase 7, because it requires a workflow change.
 - `pnpm run test:all` does **not** include these tests.
+
+## Browser verification (Phase 5 CP7)
+
+The real Next.js app can't run a signed-in session without live Firebase: the client uses the live config, and the server verifies session cookies against live Auth. Browser checks therefore use a test-only harness kept outside the repository. It renders the app's real components and route module, replaces only auth, Next navigation and the Firestore client module, and runs the real Firestore web SDK against the local `demo-safecall` emulator. Method, results, screenshots and findings: [PHASE5-VERIFICATION.md](PHASE5-VERIFICATION.md). Don't open the regular `pnpm run dev` app and use the decision form: it writes to the live project.
 - The emulator does **not** enforce composite indexes — `tests/unit/lib/firebase/indexes.test.ts` guards the index definitions instead; real index coverage is only proven against production after `firestore:indexes` is deployed.
 
 ## Mocking Firebase

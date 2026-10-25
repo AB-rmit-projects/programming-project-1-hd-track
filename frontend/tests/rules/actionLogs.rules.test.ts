@@ -16,9 +16,11 @@ import {
 } from 'firebase/firestore'
 import {
   ACTION_LOGS_COLLECTION,
+  INCIDENTS_COLLECTION,
   actionHistoryConstraints,
   reviewedActionsConstraints,
 } from '@/lib/firebase/firestore'
+import { ACTION_TYPES } from '@/lib/validations/actionLog'
 import {
   ALICE,
   ALICE_INCIDENT,
@@ -27,7 +29,9 @@ import {
   anonymousVisitor,
   createTestEnv,
   dbOf,
+  incidentFixture,
   seedActionLog,
+  seedDataset,
   seedIncidents,
   unverifiedUser,
   validActionLog,
@@ -170,6 +174,56 @@ describe('actionLogs — create: incident reference', () => {
   it('lets Bob log against his own incident (rules are per-operator, not per-user-hardcoded)', async () => {
     const data = validActionLog({ ownerUid: BOB, incidentId: BOB_INCIDENT })
     await assertSucceeds(create(verifiedUser(env, BOB), data))
+  })
+})
+
+describe('actionLogs — create: the incident must be simulated', () => {
+  const OWN_REAL = `${ALICE}_INC-REAL`
+
+  /** Alice's own incident with isSimulated replaced (or removed when undefined), written with rules bypassed. */
+  async function ownIncidentWith(isSimulated: unknown) {
+    const data: Record<string, unknown> = { ...incidentFixture(ALICE), isSimulated }
+    if (isSimulated === undefined) delete data.isSimulated
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(dbOf(context), INCIDENTS_COLLECTION, OWN_REAL), data)
+    })
+  }
+
+  it.each(ACTION_TYPES)("%s is accepted on the owner's simulated incident", async (actionType) => {
+    await assertSucceeds(create(verifiedUser(env, ALICE), validActionLog({ actionType })))
+  })
+
+  it.each(ACTION_TYPES)("%s is refused on the owner's own non-simulated incident", async (actionType) => {
+    await ownIncidentWith(false)
+    await assertFails(create(verifiedUser(env, ALICE), validActionLog({ actionType, incidentId: OWN_REAL })))
+  })
+
+  it.each([
+    ['missing', undefined],
+    ['the string "true"', 'true'],
+    ['the number 1', 1],
+    ['null', null],
+  ])('an incident whose isSimulated is %s does not authorise a write', async (_label, isSimulated) => {
+    await ownIncidentWith(isSimulated)
+    await assertFails(create(verifiedUser(env, ALICE), validActionLog({ incidentId: OWN_REAL })))
+  })
+
+  it('other and unverified operators stay refused on a simulated incident', async () => {
+    await assertFails(create(verifiedUser(env, BOB), validActionLog({ ownerUid: BOB })))
+    await assertFails(create(unverifiedUser(env, ALICE), validActionLog()))
+  })
+
+  it('an invalid payload stays refused on a simulated incident', async () => {
+    await assertFails(create(verifiedUser(env, ALICE), validActionLog({ note: 'short' })))
+  })
+
+  it('every one of the 50 Phase 3 incidents accepts a decision', async () => {
+    const seeded = await seedDataset(env, ALICE, new Date('2026-10-21T00:00:00.000Z'))
+    expect(seeded).toHaveLength(50)
+    const db = verifiedUser(env, ALICE)
+    for (const { id } of seeded) {
+      await assertSucceeds(create(db, validActionLog({ incidentId: id, actionType: 'REVIEWED' })))
+    }
   })
 })
 

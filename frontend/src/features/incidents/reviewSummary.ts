@@ -10,6 +10,43 @@ import type {
 /** The only action-log fields the review status depends on. */
 export type ReviewEvidence = Pick<ActionLog, 'incidentId' | 'actionType'>
 
+/** The parts of a query-snapshot document used here (a QueryDocumentSnapshot<ActionLog> satisfies it). */
+export interface ActionLogSnapshotDoc {
+  metadata: { hasPendingWrites: boolean }
+  data(): ReviewEvidence & { createdAt?: unknown }
+}
+
+/**
+ * The review evidence in one action-log snapshot, keeping only documents the
+ * server has accepted.
+ *
+ * Firestore shows a locally created document in query results straight away,
+ * before the server has accepted (or rejected) the write, and marks it
+ * `metadata.hasPendingWrites`. That flag is checked per document, not on the
+ * whole query snapshot, so a pending log never hides confirmed ones in the
+ * same snapshot. Once the server accepts the write, a listener with
+ * `includeMetadataChanges` receives the same document again with the flag
+ * cleared, and it counts from then on. A rejected write is removed from the
+ * results by the SDK, so it never counts.
+ *
+ * A log with no `createdAt` field is also left out. The detail page's history
+ * query orders by createdAt, and Firestore leaves out any document missing
+ * that field, so such a log could never appear in the incident's history;
+ * counting it here would make the two screens disagree. Any present value
+ * (even null or a malformed one) is kept: Firestore includes those in the
+ * ordered query, and the detail page lists them. Only privileged writes can
+ * create such a log — the rules require createdAt == request.time.
+ */
+export function confirmedReviewEvidence(docs: readonly ActionLogSnapshotDoc[]): ReviewEvidence[] {
+  return docs.flatMap((doc) => {
+    if (doc.metadata.hasPendingWrites) return []
+    const data = doc.data()
+    if (!Object.hasOwn(data, 'createdAt')) return []
+    const { incidentId, actionType } = data
+    return [{ incidentId, actionType }]
+  })
+}
+
 /**
  * Counts and review status for the dashboard (AC-10).
  *

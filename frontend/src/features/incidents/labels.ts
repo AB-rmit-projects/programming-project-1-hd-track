@@ -1,4 +1,4 @@
-import type { CauseCategory, Incident } from '@/types/firestore'
+import type { ActionType, CauseCategory, Incident } from '@/types/firestore'
 import type { QueueTab, ReviewStatus } from './types'
 
 // Typed as complete Records, so adding a code to a union without a label
@@ -30,10 +30,39 @@ export const QUEUE_TAB_LABELS: Record<QueueTab, string> = {
   REVIEWED: 'Reviewed',
 }
 
-/** Shown in place of a value that was missing or unexpected (IncidentRow field is null). */
+/** How a saved decision is named in the history. */
+export const ACTION_TYPE_LABELS: Record<ActionType, string> = {
+  ACKNOWLEDGE: 'Acknowledged',
+  ESCALATE: 'Escalation recorded',
+  REVIEWED: 'Reviewed',
+}
+
+/** What each decision means, shown beside the choice. Only REVIEWED changes the review status. */
+export const ACTION_TYPE_DESCRIPTIONS: Record<ActionType, string> = {
+  ACKNOWLEDGE: 'Records that you have seen this incident. It stays awaiting review.',
+  ESCALATE:
+    'Records that you would escalate this incident. Nothing else happens: no alert, notification or welfare check is sent, and it stays awaiting review.',
+  REVIEWED: 'Marks this incident as reviewed. It then counts towards the Reviewed total.',
+}
+
+/**
+ * Shown in place of a value that was missing or unexpected (an IncidentRow,
+ * IncidentDetail or ActionHistoryEntry field is null).
+ */
 export const FALLBACK_LABELS = {
   text: '—',
   status: 'Unknown',
   causeCategory: 'Unrecognised category',
   lastSignalAt: 'Not recorded',
+  actionType: 'Unrecognised decision',
+  note: 'Rationale not available',
+  createdAt: 'Time not recorded',
+} as const
+
+/**
+ * Information the incident schema does not contain at all (not a missing
+ * value): shown as unavailable, never estimated.
+ */
+export const NOT_IN_DATASET_LABELS = {
+  confidence: 'Not available — the simulated incident data has no confidence score',
 } as const

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FirestoreError, onSnapshot, query, type Unsubscribe } from 'firebase/firestore'
+import { onSnapshot, query } from 'firebase/firestore'
 import {
   getActionLogsCollection,
   getIncidentsCollection,
@@ -9,8 +9,13 @@ import {
   reviewedActionsConstraints,
 } from '@/lib/firebase/firestore'
 import { parseIncident } from '@/features/incidents/incidentRow'
-import { deriveReviewSummary, type ReviewEvidence } from '@/features/incidents/reviewSummary'
+import {
+  confirmedReviewEvidence,
+  deriveReviewSummary,
+  type ReviewEvidence,
+} from '@/features/incidents/reviewSummary'
 import type { ParsedIncident, ReviewSummary } from '@/features/incidents/types'
+import { safeListen, withSnapshot, type ListenerError, type ListenerState } from './listenerState'
 
 /** How long to wait for both queries to be confirmed by the server before reporting offline. */
 export const SERVER_CONFIRMATION_TIMEOUT_MS = 15_000
@@ -25,7 +30,7 @@ export type DashboardStatus =
   | 'integrity-error' // an incident is not marked isSimulated: true
 
 /** What the dashboard needs from a Firestore error (a FirestoreError satisfies it). */
-export type DashboardError = Pick<FirestoreError, 'code' | 'message'>
+export type DashboardError = ListenerError
 
 export interface IncidentDashboardState {
   status: DashboardStatus
@@ -40,12 +45,6 @@ export interface IncidentDashboardState {
   error: DashboardError | null
   retry: () => void
 }
-
-type ListenerState<T> =
-  | { phase: 'pending' }
-  // confirmed: at least one snapshot from the server has arrived (not only the cache)
-  | { phase: 'snapshot'; docs: T[]; fromCache: boolean; confirmed: boolean }
-  | { phase: 'error'; error: DashboardError }
 
 /** Everything loaded by one subscription, tagged with the UID and generation that produced it. */
 interface SubscriptionData {
@@ -63,43 +62,6 @@ function emptySubscription(uid: string, generation: number): SubscriptionData {
     incidents: { phase: 'pending' },
     reviewed: { phase: 'pending' },
     timedOut: false,
-  }
-}
-
-function withSnapshot<T>(
-  previous: ListenerState<T>,
-  docs: T[],
-  fromCache: boolean
-): ListenerState<T> {
-  const confirmedBefore = previous.phase === 'snapshot' && previous.confirmed
-  return { phase: 'snapshot', docs, fromCache, confirmed: confirmedBefore || !fromCache }
-}
-
-/**
- * onSnapshot, and the unsubscribe function it returns, throw synchronously once
- * the SDK's internal queue has failed (after an "INTERNAL ASSERTION FAILED",
- * every later call fails with the same error). Report that through the
- * listener's error path instead of letting it escape the effect and crash the
- * page. The raw SDK message is not passed on.
- */
-function safeListen(start: () => Unsubscribe, onError: (error: DashboardError) => void) {
-  let stop: Unsubscribe
-  try {
-    stop = start()
-  } catch (error) {
-    onError(
-      error instanceof FirestoreError
-        ? error
-        : { code: 'internal', message: 'The Firestore client could not start a listener.' }
-    )
-    return () => {}
-  }
-  return () => {
-    try {
-      stop()
-    } catch {
-      // A failed client has already dropped its listeners; nothing left to stop.
-    }
   }
 }
 
@@ -147,7 +109,8 @@ function toDashboardState(
  * operator's incidents, and their REVIEWED action logs. Counts are shown only
  * once the server has confirmed both; an empty cached result is never treated
  * as "no incidents". New REVIEWED logs arrive through the live listener, so the
- * counts update without a reload.
+ * counts update without a reload — but only once the server has accepted them:
+ * a log still waiting for the server (hasPendingWrites) is not counted.
  *
  * Owner isolation: loaded data carries the UID and generation of the
  * subscription that produced it. Data for any other UID or generation is never
@@ -221,10 +184,10 @@ export function useIncidentDashboard(uid: string | null): IncidentDashboardState
           query(getActionLogsCollection(), ...reviewedActionsConstraints(uid)),
           options,
           (snapshot) => {
-            const docs = snapshot.docs.map((doc) => {
-              const { incidentId, actionType } = doc.data()
-              return { incidentId, actionType }
-            })
+            // Only logs the server has accepted count (see confirmedReviewEvidence).
+            // snapshot.metadata.fromCache says whether the query result came from the
+            // server; a pending local write can sit in a server-current result.
+            const docs = confirmedReviewEvidence(snapshot.docs)
             noteSnapshot('reviewed', snapshot.metadata.fromCache)
             update((current) => ({
               ...current,
