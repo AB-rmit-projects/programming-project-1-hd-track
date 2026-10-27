@@ -1,6 +1,34 @@
-# Garage Boilerplate
+# SafeCall Incident Review
 
-> Streamlined Next.js + Firebase monorepo for student capstone projects — batteries included, beginner friendly, free-tier only.
+> **SafeCall Incident Evidence & Action Log**, an individual HD Track feature (RMIT COSC2408), built on the [Garage Boilerplate](https://github.com/RMIT-Garage/garage-boilerplate-basic): a streamlined Next.js + Firebase monorepo for student capstone projects.
+
+**Live:** https://safecall-incident-review.vercel.app (sign-in required; all incident data is fictional)
+
+## SafeCall at a glance
+
+- **Incident queue** (`/dashboard`): the signed-in operator's 50 simulated pendant connectivity incidents (*Pendant offline* / *Pendant silent*), with live Total / Awaiting review / Reviewed counts, search, a connectivity filter, a Melbourne-date report range, sorting and review tabs.
+- **Evidence review** (`/dashboard/incidents/[incidentId]`): the incident's facts, its simulated evidence, a likely-cause *interpretation* and an advisory next step. Nothing is presented as a confirmed diagnosis.
+- **Append-only decisions:** ACKNOWLEDGE, ESCALATE or REVIEWED, with a 10–500-character rationale, saved as `actionLogs` documents. A decision is shown as saved only after Firestore accepts it, and security rules forbid editing or deleting saved decisions. An incident counts as reviewed once it has a REVIEWED decision. ESCALATE records intent only; nothing is sent.
+- **Stack:**
+  - Next.js 16 (App Router) on Vercel, deployed automatically from `main`;
+  - Firebase Authentication (email-verified accounts, server-verified session cookie);
+  - Firestore (`incidents`, `actionLogs`), protected by `firebase/firestore.rules`.
+- **Not used:** the Express / Cloud Functions backend in `backend/` is inherited from the boilerplate. It isn't deployed and isn't part of SafeCall.
+- **Tests:**
+
+  | Command | What it runs |
+  |---|---|
+  | `pnpm run test:component` | Frontend unit and component tests |
+  | `pnpm run test:rules` | Security rules, query and migration tests on a **local Firestore emulator** (Java 21+; not run in GitHub CI) |
+  | `pnpm run typecheck` · `pnpm run lint` | Type and lint checks |
+
+- **Docs:**
+  - data model and rules: [docs/FIRESTORE-SCHEMA.md](docs/FIRESTORE-SCHEMA.md);
+  - dataset, seeding and the timeline migration: [docs/SEEDING.md](docs/SEEDING.md);
+  - architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md);
+  - verification evidence: [docs/PHASE5-VERIFICATION.md](docs/PHASE5-VERIFICATION.md) and [docs/PHASE6-VERIFICATION.md](docs/PHASE6-VERIFICATION.md).
+
+The rest of this README is the boilerplate's setup guide, which still applies.
 
 **New here? Read the [step-by-step guide](docs/GUIDE.md)** — it walks you from clone to shipping your first feature. The system diagrams are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -17,7 +45,7 @@
 | **Testing** | Vitest · Testing Library · supertest |
 | **Quality gates** | Lefthook (Conventional Commits, lint, format) · GitHub Actions CI |
 
-There's no local emulator and no Docker — the app always talks to a real (free) Firebase project. Firebase Cloud Storage isn't used either, since real usage requires the paid Blaze plan; store file metadata in Firestore or use a free third-party host if a feature needs uploads.
+There's no Docker, and the app itself always talks to a real (free) Firebase project. The local Firestore emulator is used only by the security-rules tests (`pnpm run test:rules`). Firebase Cloud Storage isn't used either, since real usage requires the paid Blaze plan; store file metadata in Firestore or use a free third-party host if a feature needs uploads.
 
 ## Quick Start
 
