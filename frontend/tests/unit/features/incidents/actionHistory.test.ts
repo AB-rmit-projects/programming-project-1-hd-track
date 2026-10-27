@@ -303,6 +303,7 @@ describe('deriveIncidentReviewStatus — consistent with the dashboard (deriveRe
     ({ id, data }) => {
       const parsed = parseIncident(id, {
         ...data,
+        reportedAt: Timestamp.fromDate(data.reportedAt),
         lastSignalAt: Timestamp.fromDate(data.lastSignalAt),
         createdAt: Timestamp.fromDate(data.createdAt),
       })

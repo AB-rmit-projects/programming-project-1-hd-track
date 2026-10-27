@@ -14,9 +14,19 @@ export const CAUSE_CATEGORY_LABELS: Record<CauseCategory, string> = {
   INSUFFICIENT_EVIDENCE: 'Insufficient / conflicting evidence',
 }
 
+/**
+ * The pendant's (simulated) connectivity. Always worded as the pendant's state,
+ * so it is never confused with the operator's own network connection.
+ */
 export const INCIDENT_STATUS_LABELS: Record<Incident['status'], string> = {
-  OFFLINE: 'Offline',
-  SILENT: 'Silent',
+  OFFLINE: 'Pendant offline',
+  SILENT: 'Pendant silent',
+}
+
+/** What each pendant state means — the queue's connectivity legend. */
+export const INCIDENT_STATUS_DESCRIPTIONS: Record<Incident['status'], string> = {
+  OFFLINE: 'No heartbeat received from the pendant since its last signal.',
+  SILENT: 'Heartbeat still received, but an expected check-in or self-test was missed.',
 }
 
 export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
@@ -54,6 +64,7 @@ export const FALLBACK_LABELS = {
   status: 'Unknown',
   causeCategory: 'Unrecognised category',
   lastSignalAt: 'Not recorded',
+  reportedAt: 'Not recorded',
   actionType: 'Unrecognised decision',
   note: 'Rationale not available',
   createdAt: 'Time not recorded',
@@ -65,4 +76,6 @@ export const FALLBACK_LABELS = {
  */
 export const NOT_IN_DATASET_LABELS = {
   confidence: 'Not available — the simulated incident data has no confidence score',
+  /** A version 1 record predates the report time; it is shown as absent, never estimated. */
+  legacyReportedAt: 'Not recorded in this earlier-format record',
 } as const

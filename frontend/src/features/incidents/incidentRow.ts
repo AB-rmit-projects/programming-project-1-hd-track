@@ -50,6 +50,9 @@ export function readText<Field extends string>(
  *   be shown under the dashboard's "simulated" label.
  * - Any other missing or unexpected field becomes null and is recorded in
  *   `dataIssues`, so the row can still be listed with a fallback label.
+ * - A version 1 record (`_schemaVersion: 1`) predates `reportedAt`: it is
+ *   marked `legacyTimeline` and its report time stays null. That is the
+ *   record's real state, not a data issue, and no time is ever made up for it.
  */
 export function parseIncident(id: string, data: unknown): ParsedIncident {
   const record = isRecord(data) ? data : {}
@@ -72,6 +75,10 @@ export function parseIncident(id: string, data: unknown): ParsedIncident {
   const causeCategory = isCauseCategory(record.causeCategory) ? record.causeCategory : null
   if (causeCategory === null) dataIssues.push('causeCategory')
 
+  const legacyTimeline = record._schemaVersion === 1
+  const reportedAt = legacyTimeline ? null : toStoredDate(record.reportedAt)
+  if (reportedAt === null && !legacyTimeline) dataIssues.push('reportedAt')
+
   const lastSignalAt = toStoredDate(record.lastSignalAt)
   if (lastSignalAt === null) dataIssues.push('lastSignalAt')
 
@@ -85,7 +92,9 @@ export function parseIncident(id: string, data: unknown): ParsedIncident {
       postcode,
       status,
       causeCategory,
+      reportedAt,
       lastSignalAt,
+      legacyTimeline,
       dataIssues,
     },
   }

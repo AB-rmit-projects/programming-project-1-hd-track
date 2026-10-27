@@ -71,6 +71,7 @@ function storedIncident(owner: string, index = 0): { id: string; data: Record<st
     id: record.id,
     data: {
       ...record.data,
+      reportedAt: Timestamp.fromDate(record.data.reportedAt),
       lastSignalAt: Timestamp.fromDate(record.data.lastSignalAt),
       createdAt: Timestamp.fromDate(record.data.createdAt),
     },

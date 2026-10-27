@@ -40,6 +40,11 @@ export type ActionType = 'ACKNOWLEDGE' | 'ESCALATE' | 'REVIEWED'
 /**
  * incidents/{incidentId} — fictional, pre-seeded by an administrator (Admin SDK).
  * Operators can only read their own incidents; clients can never write them.
+ *
+ * Schema version 2 (Phase 6). The three times mean different things:
+ *   - `reportedAt`   — simulated: when the fictional monitoring platform raised the incident.
+ *   - `lastSignalAt` — simulated: the last pendant heartbeat received before `reportedAt`.
+ *   - `createdAt`    — real: when this Firestore document was written (dataset metadata).
  */
 export interface Incident {
   ownerUid: string
@@ -49,6 +54,7 @@ export interface Incident {
   suburb: string
   state: 'VIC'
   postcode: string
+  reportedAt: Timestamp
   lastSignalAt: Timestamp
   causeCategory: CauseCategory
   likelyCause: string
@@ -56,8 +62,15 @@ export interface Incident {
   evidenceSummary: string
   isSimulated: true
   createdAt: Timestamp
-  _schemaVersion: 1
+  _schemaVersion: 2
 }
+
+/**
+ * A version 1 incident (Phases 3–5): no `reportedAt`, and `lastSignalAt` was
+ * an offset from the seed time. Still readable until the timeline migration
+ * converts the live documents to version 2.
+ */
+export type IncidentV1 = Omit<Incident, 'reportedAt' | '_schemaVersion'> & { _schemaVersion: 1 }
 
 /**
  * actionLogs/{actionLogId} — an operator's decision on one of their incidents.

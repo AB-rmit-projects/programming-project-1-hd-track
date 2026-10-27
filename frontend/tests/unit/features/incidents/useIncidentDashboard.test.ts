@@ -80,6 +80,7 @@ function seededDocs(owner: string): FakeDoc[] {
   return buildSeedIncidents(owner, NOW).map(({ id, data }) => {
     const stored = {
       ...data,
+      reportedAt: Timestamp.fromDate(data.reportedAt),
       lastSignalAt: Timestamp.fromDate(data.lastSignalAt),
       createdAt: Timestamp.fromDate(data.createdAt),
     }

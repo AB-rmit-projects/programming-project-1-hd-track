@@ -12,6 +12,7 @@ const NOW = new Date('2026-10-21T00:00:00.000Z')
 function asStored({ data }: SeedRecord): Record<string, unknown> {
   return {
     ...data,
+    reportedAt: Timestamp.fromDate(data.reportedAt),
     lastSignalAt: Timestamp.fromDate(data.lastSignalAt),
     createdAt: Timestamp.fromDate(data.createdAt),
   }
@@ -50,7 +51,9 @@ describe('parseIncident — valid seeded records', () => {
         postcode: FIRST.data.postcode,
         status: FIRST.data.status,
         causeCategory: FIRST.data.causeCategory,
+        reportedAt: FIRST.data.reportedAt,
         lastSignalAt: FIRST.data.lastSignalAt,
+        legacyTimeline: false,
         dataIssues: [],
       },
     })
@@ -159,8 +162,17 @@ describe('parseIncident — other malformed fields fall back and are recorded', 
       postcode: null,
       status: 'SILENT',
       causeCategory: null,
+      reportedAt: null,
       lastSignalAt: null,
-      dataIssues: ['incidentCode', 'deviceId', 'postcode', 'causeCategory', 'lastSignalAt'],
+      legacyTimeline: false,
+      dataIssues: [
+        'incidentCode',
+        'deviceId',
+        'postcode',
+        'causeCategory',
+        'reportedAt',
+        'lastSignalAt',
+      ],
     })
   })
 })
@@ -193,5 +205,58 @@ describe('parseIncident — lastSignalAt', () => {
     const row = parseRow(storedWith({ lastSignalAt: new Timestamp(Number.NaN, 0) }))
     expect(row.lastSignalAt).toBeNull()
     expect(row.dataIssues).toEqual(['lastSignalAt'])
+  })
+})
+
+describe('parseIncident — reportedAt (schema v2)', () => {
+  it('converts a Firestore Timestamp to the same instant', () => {
+    const at = new Date('2026-09-04T08:23:40.000Z')
+    expect(parseRow(storedWith({ reportedAt: Timestamp.fromDate(at) })).reportedAt).toEqual(at)
+  })
+
+  it.each([
+    ['missing', undefined],
+    ['an ISO string', '2026-09-04T08:23:40.000Z'],
+    ['a plain Date', new Date('2026-09-04T08:23:40.000Z')],
+    ['null', null],
+  ])('a version 2 record with reportedAt %s → null + issue, never estimated', (_label, value) => {
+    const data = storedWith({ reportedAt: value })
+    if (value === undefined) delete data.reportedAt
+    const row = parseRow(data)
+    expect(row.reportedAt).toBeNull()
+    expect(row.legacyTimeline).toBe(false)
+    expect(row.dataIssues).toEqual(['reportedAt'])
+  })
+})
+
+describe('parseIncident — version 1 (legacy) records stay readable until migrated', () => {
+  /** A stored version 1 record, as written in Phases 3–5: no reportedAt. */
+  function storedV1(): Record<string, unknown> {
+    const data: Record<string, unknown> = { ...asStored(FIRST), _schemaVersion: 1 }
+    delete data.reportedAt
+    return data
+  }
+
+  it('is accepted with no data issue, flagged legacy, and has no report time', () => {
+    const row = parseRow(storedV1())
+    expect(row.legacyTimeline).toBe(true)
+    expect(row.reportedAt).toBeNull()
+    expect(row.dataIssues).toEqual([])
+    expect(row.lastSignalAt).toEqual(FIRST.data.lastSignalAt)
+    expect(row.incidentCode).toBe('INC-001')
+  })
+
+  it('never takes a report time from a version 1 record, even if one is present', () => {
+    const row = parseRow({ ...storedV1(), reportedAt: Timestamp.fromDate(new Date()) })
+    expect(row.reportedAt).toBeNull()
+    expect(row.legacyTimeline).toBe(true)
+  })
+
+  it('still rejects a version 1 record that is not marked simulated', () => {
+    expect(parseIncident(ID, { ...storedV1(), isSimulated: false })).toEqual({
+      ok: false,
+      id: ID,
+      reason: 'NOT_SIMULATED',
+    })
   })
 })

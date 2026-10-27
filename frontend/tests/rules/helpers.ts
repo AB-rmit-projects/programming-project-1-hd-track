@@ -145,6 +145,7 @@ export async function seedDataset(env: RulesTestEnvironment, ownerUid: string, n
     for (const { id, data } of records) {
       batch.set(doc(db, INCIDENTS_COLLECTION, id), {
         ...data,
+        reportedAt: Timestamp.fromDate(data.reportedAt),
         lastSignalAt: Timestamp.fromDate(data.lastSignalAt),
         createdAt: Timestamp.fromDate(data.createdAt),
       })
