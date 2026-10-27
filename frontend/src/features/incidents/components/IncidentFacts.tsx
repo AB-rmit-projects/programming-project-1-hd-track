@@ -107,34 +107,6 @@ export function IncidentFacts({ incident }: { incident: IncidentDetail }) {
           </Fact>
         </dl>
       </section>
-
-      <section
-        aria-labelledby="incident-record-heading"
-        className="rounded-lg border border-dashed border-zinc-300 p-4 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
-      >
-        <h2 id="incident-record-heading" className="font-semibold text-zinc-700 dark:text-zinc-300">
-          Dataset record
-        </h2>
-        <p className="mt-1">
-          Technical details of the demonstration record itself, not of the simulated incident.
-        </p>
-        <dl className="mt-2 space-y-2">
-          <Fact label="Record created">
-            <IncidentTime at={incident.createdAt} fallback={FALLBACK_LABELS.createdAt} />
-            <span className="block text-zinc-500">
-              When this record was added to the demo database — not when the fictional incident
-              happened, so it can be earlier or later than the simulated times.
-            </span>
-          </Fact>
-          <Fact label="Data format">
-            {incident.legacyTimeline
-              ? 'Version 1 (earlier format)'
-              : incident.dataIssues.includes('_schemaVersion')
-                ? 'Unrecognised version'
-                : 'Version 2'}
-          </Fact>
-        </dl>
-      </section>
     </div>
   )
 }
