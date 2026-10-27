@@ -27,7 +27,7 @@ const ACTION_STYLES: Record<ActionType, { icon: LucideIcon; className: string }>
   },
   REVIEWED: {
     icon: CheckCircle2,
-    className: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300',
+    className: 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300',
   },
 }
 
@@ -55,7 +55,7 @@ function Entry({ entry }: { entry: ActionHistoryEntry }) {
     <li className="min-w-0 py-3 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <ActionBadge actionType={entry.actionType} />
-        <span className="text-xs text-zinc-500">
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">
           {entry.createdAt ? (
             <time dateTime={entry.createdAt.toISOString()}>
               {formatMelbourneDateTime(entry.createdAt)}
@@ -69,7 +69,9 @@ function Entry({ entry }: { entry: ActionHistoryEntry }) {
         </span>
       </div>
       <p className="mt-1.5 text-sm [overflow-wrap:anywhere] whitespace-pre-wrap">
-        {entry.note ?? <span className="text-zinc-500">{FALLBACK_LABELS.note}</span>}
+        {entry.note ?? (
+          <span className="text-zinc-500 dark:text-zinc-400">{FALLBACK_LABELS.note}</span>
+        )}
       </p>
     </li>
   )
@@ -83,20 +85,20 @@ function Notes({ history }: { history: IncidentHistoryState }) {
   return (
     <>
       {history.pendingCount > 0 && (
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
           {plural(history.pendingCount, 'decision is', 'decisions are')} waiting for the server and{' '}
           {history.pendingCount === 1 ? "isn't" : "aren't"} listed until confirmed.
         </p>
       )}
       {history.dataIssueCount > 0 && (
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
           {plural(history.dataIssueCount, 'entry has', 'entries have')} missing or unexpected
           fields; affected values are shown as “{FALLBACK_LABELS.actionType}”, “
           {FALLBACK_LABELS.createdAt}” or “{FALLBACK_LABELS.note}”.
         </p>
       )}
       {history.rejectedCount > 0 && (
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
           {plural(history.rejectedCount, 'record was', 'records were')} not shown because{' '}
           {history.rejectedCount === 1 ? "it doesn't" : "they don't"} belong to this incident and
           account.
@@ -132,7 +134,7 @@ function Body({ history, onRetry }: { history: IncidentHistoryState; onRetry: ()
               ))}
             </ol>
           ) : (
-            <p className="text-sm text-zinc-500">No decisions recorded yet.</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">No decisions recorded yet.</p>
           )}
           <Notes history={history} />
         </div>
@@ -181,7 +183,10 @@ function Body({ history, onRetry }: { history: IncidentHistoryState; onRetry: ()
       )
     default:
       return (
-        <div aria-busy="true" className="flex items-center gap-3 py-4 text-sm text-zinc-500">
+        <div
+          aria-busy="true"
+          className="flex items-center gap-3 py-4 text-sm text-zinc-500 dark:text-zinc-400"
+        >
           <LoadingSpinner size="sm" />
           <p>Loading decision history…</p>
         </div>
@@ -210,7 +215,7 @@ export function ActionHistory({
         <h2 id="action-history-heading" className="text-base font-semibold">
           Decision history
         </h2>
-        <p className="text-xs text-zinc-500">Newest first</p>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">Newest first</p>
       </div>
       <div className="mt-3">
         <Body history={history} onRetry={onRetry} />

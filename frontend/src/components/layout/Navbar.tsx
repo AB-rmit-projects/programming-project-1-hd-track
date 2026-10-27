@@ -38,11 +38,15 @@ export function Navbar() {
         </Link>
         <div className="flex-1" />
         <div className="flex shrink-0 items-center gap-3">
-          {user && <span className="hidden text-sm text-zinc-500 sm:block">{user.email}</span>}
+          {user && (
+            <span className="hidden text-sm text-zinc-500 sm:block dark:text-zinc-400">
+              {user.email}
+            </span>
+          )}
           <button
             type="button"
             onClick={handleSignOut}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
             aria-label="Sign out"
           >
             <LogOut className="h-4 w-4" />

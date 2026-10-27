@@ -15,7 +15,7 @@ const CARD =
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="min-w-0 sm:grid sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-3">
-      <dt className="text-zinc-500">{label}</dt>
+      <dt className="text-zinc-500 dark:text-zinc-400">{label}</dt>
       <dd className="mt-0.5 [overflow-wrap:anywhere] sm:mt-0">{children}</dd>
     </div>
   )
@@ -73,7 +73,7 @@ export function IncidentFacts({ incident }: { incident: IncidentDetail }) {
             <IncidentTime at={incident.lastSignalAt} fallback={FALLBACK_LABELS.lastSignalAt} />
           </Fact>
         </dl>
-        <p className="mt-3 text-xs text-zinc-500">
+        <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
           A historical, fictional scenario — not a live alert. Times are Melbourne time.
         </p>
       </section>
@@ -82,7 +82,7 @@ export function IncidentFacts({ incident }: { incident: IncidentDetail }) {
         <h2 id="incident-evidence-heading" className="text-base font-semibold">
           Evidence and assessment
         </h2>
-        <p className="mt-1 text-xs text-zinc-500">
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
           All of this is simulated and advisory. It is an assessment of the evidence, not a
           confirmed diagnosis.
         </p>
@@ -92,7 +92,7 @@ export function IncidentFacts({ incident }: { incident: IncidentDetail }) {
           </Fact>
           <Fact label="Cause category">
             {cause}
-            <span className="block text-xs text-zinc-500">
+            <span className="block text-xs text-zinc-500 dark:text-zinc-400">
               A scenario association, not a confirmed cause.
             </span>
           </Fact>
@@ -100,7 +100,9 @@ export function IncidentFacts({ incident }: { incident: IncidentDetail }) {
             <Prose value={incident.likelyCause} />
           </Fact>
           <Fact label="Confidence">
-            <span className="text-zinc-500">{NOT_IN_DATASET_LABELS.confidence}</span>
+            <span className="text-zinc-500 dark:text-zinc-400">
+              {NOT_IN_DATASET_LABELS.confidence}
+            </span>
           </Fact>
           <Fact label="Recommended action (advisory)">
             <Prose value={incident.recommendedAction} />

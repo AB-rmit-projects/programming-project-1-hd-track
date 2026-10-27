@@ -302,7 +302,7 @@ function Loading() {
       <SummaryStats summary={null} />
       <div
         aria-busy="true"
-        className="flex items-center justify-center gap-3 py-16 text-sm text-zinc-500"
+        className="flex items-center justify-center gap-3 py-16 text-sm text-zinc-500 dark:text-zinc-400"
       >
         <LoadingSpinner size="md" />
         <p>Loading incidents…</p>

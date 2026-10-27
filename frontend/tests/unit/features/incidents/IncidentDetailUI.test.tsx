@@ -433,10 +433,12 @@ describe('IncidentDetail — incident details', () => {
 // ── Decision form ────────────────────────────────────────────────────────────
 
 describe('IncidentDetail — decision form validation', () => {
-  it('offers exactly three decisions, in a labelled group, each selectable', async () => {
+  it('offers exactly three decisions, in a labelled radio group, each selectable', async () => {
     showDetail()
     confirmBoth()
-    const group = screen.getByRole('group', { name: 'Decision' })
+    const group = screen.getByRole('radiogroup', { name: 'Decision' })
+    expect(group).not.toHaveAttribute('aria-invalid')
+    expect(group).not.toHaveAttribute('aria-describedby')
     expect(within(group).getAllByRole('radio')).toHaveLength(3)
     for (const name of ['ACKNOWLEDGE', 'ESCALATE', 'REVIEWED']) {
       await user.click(radio(name))
@@ -456,6 +458,37 @@ describe('IncidentDetail — decision form validation', () => {
     expect(screen.getByText('Choose ACKNOWLEDGE, ESCALATE or REVIEWED.')).toBeInTheDocument()
     expect(radio('ACKNOWLEDGE')).toHaveFocus()
     expect(addDoc).not.toHaveBeenCalled()
+  })
+
+  it('without a decision: the radio group is marked invalid and described by the error', async () => {
+    showDetail()
+    confirmBoth()
+    await fill(null, NOTE)
+    await user.click(saveButton())
+
+    const group = screen.getByRole('radiogroup', { name: 'Decision' })
+    const error = screen.getByText('Choose ACKNOWLEDGE, ESCALATE or REVIEWED.')
+    expect(group).toHaveAttribute('aria-invalid', 'true')
+    expect(group.getAttribute('aria-describedby')).toBe(error.id)
+    expect(group).toHaveAccessibleDescription('Choose ACKNOWLEDGE, ESCALATE or REVIEWED.')
+    // Focus still goes to the first choice, inside the described group.
+    expect(radio('ACKNOWLEDGE')).toHaveFocus()
+    expect(group).toContainElement(radio('ACKNOWLEDGE'))
+  })
+
+  it('choosing a decision clears the invalid state until the next attempt', async () => {
+    showDetail()
+    confirmBoth()
+    await user.click(saveButton())
+    const group = screen.getByRole('radiogroup', { name: 'Decision' })
+    expect(group).toHaveAttribute('aria-invalid', 'true')
+
+    await user.click(radio('ESCALATE'))
+    expect(group).not.toHaveAttribute('aria-invalid')
+    expect(group).not.toHaveAttribute('aria-describedby')
+    expect(screen.queryByText('Choose ACKNOWLEDGE, ESCALATE or REVIEWED.')).not.toBeInTheDocument()
+    // The rationale error from the same attempt is independent and still shown.
+    expect(rationale()).toHaveAttribute('aria-invalid', 'true')
   })
 
   it.each([

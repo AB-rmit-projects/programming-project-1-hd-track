@@ -40,7 +40,7 @@ export function BackToQueue() {
 function Breadcrumbs({ current }: { current: string }) {
   return (
     <nav aria-label="Breadcrumb">
-      <ol className="flex flex-wrap items-center gap-1 text-sm text-zinc-500">
+      <ol className="flex flex-wrap items-center gap-1 text-sm text-zinc-500 dark:text-zinc-400">
         <li>
           <Link
             href="/dashboard"
@@ -119,7 +119,7 @@ function Loading() {
   return (
     <div
       aria-busy="true"
-      className="flex items-center justify-center gap-3 py-16 text-sm text-zinc-500"
+      className="flex items-center justify-center gap-3 py-16 text-sm text-zinc-500 dark:text-zinc-400"
     >
       <LoadingSpinner size="md" />
       <p>Loading incident…</p>

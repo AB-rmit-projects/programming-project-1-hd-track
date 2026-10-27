@@ -5,6 +5,7 @@ The SafeCall dashboard reads 50 fictional incidents per demo operator from the `
 > **Status**
 > - **Implemented:** the seed script (`frontend/scripts/seed-incidents/`) is implemented and verified against the **local Firestore emulator** only. It remains emulator-only and must never target live Firestore.
 > - **Live demo data (23 October 2026):** the live project was populated once, separately, by a controlled one-off tool outside this repository — **not** by this script. See [Live demo data](#live-demo-data-23-october-2026).
+> - **Timeline migration (27 October 2026):** the 50 live incidents were migrated in place to the July–October schema version 2 timeline and verified. The temporary migration credential has since been removed. See [Timeline migration](#timeline-migration-version-1--2).
 
 ---
 
@@ -166,9 +167,9 @@ The live demo data was created without changing this script:
 
 This records a dated verification milestone, not the current contents of the database: the counts change once operators record decisions (Phase 5). Operators without incidents still see the dashboard's zero-incident empty state. Re-seeding or cleaning up the live data would need a new, separately approved procedure.
 
-Those 50 live documents are **version 1** (seed time 2026-10-23T05:33:44Z). The app reads them safely until they are migrated (see FIRESTORE-SCHEMA.md → Schema versions).
+Those 50 live documents were written as **version 1** (seed time 2026-10-23T05:33:44Z, which remains their `createdAt`). On 27 October 2026 they were migrated in place to the July–October version 2 timeline (see the next section).
 
-### Timeline migration, version 1 → 2 (not yet run live)
+### Timeline migration, version 1 → 2
 
 `frontend/scripts/migrate-incident-timeline/` converts the existing documents in place. It never recreates, deletes or re-owns anything, and never touches action logs.
 
@@ -177,11 +178,15 @@ Those 50 live documents are **version 1** (seed time 2026-10-23T05:33:44Z). The 
 - `migrate.ts` checks the target's real `currentTime` with `assertTimelineInPast` (no plan while any report time is still in the future), then runs the steps: `dryRun` (read-only, returns the plan and a canonical backup snapshot of the 50 documents with their update times) → `write` (re-plans from fresh reads and refuses unless the digest equals the approved dry run's; then commits **one atomic batch**, so a concurrent change fails the whole batch and writes nothing; then re-reads and verifies all 50 are exactly v2, the owner still has exactly those incidents and the action-log IDs are unchanged) → `rollback` (the inverse, for documents exactly in their v2 form: restore the v1 `lastSignalAt`, remove `reportedAt`, set version 1). A second run is a no-op (`NOTHING_TO_DO`).
 - The Admin adapter uses only `getAll`, two owner-scoped ID-only queries (`select()`) and one batch of `update()` calls. Nothing in the repository chooses a project or loads a credential.
 
-**Rehearsed on the emulator only** (`frontend/tests/rules/incidentTimelineMigration.rules.test.ts`): dry run, write, verification, idempotency, a write refused after a concurrent change, the batch precondition blocking a raced write atomically, a tampered document, an extra incident, rollback to the exact v1 documents, reading the migrated documents through the rules, and a decision still saving afterwards. Decoy incidents and action logs belonging to another operator are proved unchanged.
+**Rehearsed on the emulator before the live run** (`frontend/tests/rules/incidentTimelineMigration.rules.test.ts`): dry run, write, verification, idempotency, a write refused after a concurrent change, the batch precondition blocking a raced write atomically, a tampered document, an extra incident, rollback to the exact v1 documents, reading the migrated documents through the rules, and a decision still saving afterwards. Decoy incidents and action logs belonging to another operator are proved unchanged.
 
-**A live run needs separate approvals:** a temporary credential limited to Firestore document get/list/update (no create or delete), revoked afterwards; a live dry run; review of the plan digest and backup; then the write.
+**Live run (27 October 2026), each step separately approved.** A one-off runner kept outside the repository used these modules, pinned to the SHA-256 of the merged files, with a temporary service account limited to Firestore document get/list/update (no create or delete).
 
-**After the July–October change (CP10C):** the version 1 documents and their fingerprint are unchanged, but the version 2 targets of 28 incidents change, so the plan digest from the 27 October dry run (Sep–Oct timeline) no longer applies and must not be used. The out-of-repository runner pins the SHA-256 of the migration and dataset files and builds its `MigrationTarget` itself, so before a new live dry run it needs: the new file hashes from the merged commit, and `currentTime: new Date()` in its target. The earlier dry-run backup is kept unchanged as historical evidence. A new dry run, backup and digest, each separately approved, come before any write.
+1. A first live dry run was planned for the earlier September–October timeline. When the timeline was widened to July–October (PR #8), that plan's digest was superseded and never used. Its backup is kept as historical evidence.
+2. A new read-only dry run against main `d73426c` found the original data unchanged: 50 untouched version 1 documents matching the seed fingerprint, no missing or extra incidents, and no action logs. It planned exactly 50 three-field updates.
+3. The write re-checked that digest, then committed **one atomic batch of 50 updates** (04:09:54 UTC). Every document carried its last-update-time precondition. The batch changed only `reportedAt`, `lastSignalAt` and `_schemaVersion`; `createdAt`, the text fields and the owner were left as they were.
+4. A separate read-only verification passed. All 50 documents are exactly version 2: 12 July, 12 August, 12 September and 14 October reports, from INC-007 (1 Jul, 7:22 am AEST) to INC-049 (27 Oct, 8:36 am AEDT). A repeat plan finds nothing to do.
+5. The temporary key, service account and custom IAM role were then deleted. The migration can't be run live again without a new approval and credential. Backups and reports stay outside the repository.
 
 ---
 

@@ -6,6 +6,7 @@ import { formatMelbourneDateTime } from '@/lib/melbourneTime'
  * `fallback` instead; nothing is estimated.
  */
 export function IncidentTime({ at, fallback }: { at: Date | null; fallback: string }) {
-  if (!at) return <span className="whitespace-normal text-zinc-500">{fallback}</span>
+  if (!at)
+    return <span className="whitespace-normal text-zinc-500 dark:text-zinc-400">{fallback}</span>
   return <time dateTime={at.toISOString()}>{formatMelbourneDateTime(at)}</time>
 }

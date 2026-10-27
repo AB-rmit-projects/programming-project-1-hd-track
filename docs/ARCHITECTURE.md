@@ -1,8 +1,44 @@
 # Architecture
 
+## SafeCall Incident Review (as deployed)
+
+SafeCall uses only part of the boilerplate: the Next.js frontend on Vercel, Firebase Authentication and Firestore. The Express API / Cloud Function described under System Overview is inherited and is **not deployed or used** by SafeCall. No Cloud Functions or Storage are involved.
+
+```mermaid
+flowchart LR
+    subgraph Browser["Operator's browser"]
+        Q["Incident queue<br/>/dashboard"]
+        D["Incident detail + decision form<br/>/dashboard/incidents/[id]"]
+    end
+    subgraph Vercel["Vercel (Next.js 16, auto-deploy from main)"]
+        P["proxy.ts<br/>(session cookie present?)"]
+        L["(dashboard) layout<br/>verifySessionCookie"]
+        S["/api/auth/session<br/>ID token → __session cookie"]
+    end
+    subgraph Firebase
+        A["Firebase Auth<br/>(email verified)"]
+        R{{"Firestore security rules"}}
+        I[("incidents<br/>read-only, owner-scoped")]
+        AL[("actionLogs<br/>create + read, append-only")]
+    end
+    Admin["Administrator tools<br/>(Admin SDK, outside the app)"] -.seed / migrate.-> I
+    Browser -->|sign in| A
+    Browser --> S --> A
+    Browser --> P --> L
+    Q -->|onSnapshot: own incidents + REVIEWED logs| R
+    D -->|onSnapshot: incident + its history| R
+    D -->|addDoc: one decision| R
+    R --> I
+    R --> AL
+```
+
+- **Reads and writes go straight from the browser to Firestore** through the client SDK, so the security rules decide access. The rules require a verified owner. Incidents can't be written by any client. A decision can only be created, with six validated fields and a server timestamp, for the operator's own simulated incident. Saved decisions can't be updated or deleted.
+- **The server** only manages the session: the layout verifies the session cookie, with revocation checks, before rendering signed-in pages.
+- **Incident data** is written by administrator tools outside the app: an emulator-only seed script in the repository, plus separately approved one-off live tools. See [SEEDING.md](SEEDING.md).
+
 ## System Overview
 
-The system has three parts: a **Next.js frontend** (deployed to Vercel), an **Express API** running as a single Cloud Function (optional — deployed to Firebase, requires the Blaze plan), and **Firebase services** (Auth, Firestore) used by both. There's no local emulator — the app always talks to a real Firebase project (use a free project for local dev).
+The system has three parts: a **Next.js frontend** (deployed to Vercel), an **Express API** running as a single Cloud Function (optional — deployed to Firebase, requires the Blaze plan), and **Firebase services** (Auth, Firestore) used by both. The app itself always talks to a real Firebase project (use a free project for local dev). A local Firestore emulator is used only by the security-rules tests (`pnpm run test:rules`).
 
 The frontend is server-rendered (Server Actions, `proxy.ts`, `/api/auth/session`), so it needs a server host. It deploys to Vercel's free Hobby tier rather than Firebase Hosting, since Firebase Hosting's SSR integration runs on Cloud Functions/Cloud Run and requires Blaze even at zero traffic — Vercel doesn't.
 

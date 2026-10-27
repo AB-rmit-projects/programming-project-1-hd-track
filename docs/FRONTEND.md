@@ -17,7 +17,7 @@ Next.js 16 App Router with React 19, TypeScript (strict), and Tailwind CSS v4.
 | Group | Path | Purpose |
 |-------|------|---------|
 | `(auth)` | `/auth/signin`, `/auth/signup` | Minimal centered layout, no sidebar |
-| `(dashboard)` | `/dashboard`, `/profile`, `/settings` | Full app shell with sidebar + navbar |
+| `(dashboard)` | `/dashboard`, `/dashboard/incidents/[incidentId]`, `/profile` | Full app shell with sidebar + navbar |
 | _(root)_ | `/` | Landing/marketing page |
 
 ### Feature Modules

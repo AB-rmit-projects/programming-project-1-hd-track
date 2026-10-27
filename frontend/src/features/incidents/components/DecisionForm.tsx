@@ -18,6 +18,7 @@ import type { ReviewStatus } from '@/features/incidents/types'
 
 const IDS = {
   heading: 'decision-form-heading',
+  actionLegend: 'decision-action-legend',
   actionError: 'decision-action-error',
   note: 'decision-rationale',
   noteHint: 'decision-rationale-hint',
@@ -189,8 +190,16 @@ export function DecisionForm({ submission, canRecordDecision, reviewStatus }: De
         aria-labelledby={IDS.heading}
         className="mt-3 space-y-4"
       >
-        <fieldset aria-describedby={actionIssue ? IDS.actionError : undefined}>
-          <legend className="text-sm font-medium">Decision</legend>
+        {/* A radiogroup (ARIA 1.2) can carry aria-invalid; the native radios keep their keyboard behaviour. */}
+        <fieldset
+          role="radiogroup"
+          aria-labelledby={IDS.actionLegend}
+          aria-invalid={actionIssue ? true : undefined}
+          aria-describedby={actionIssue ? IDS.actionError : undefined}
+        >
+          <legend id={IDS.actionLegend} className="text-sm font-medium">
+            Decision
+          </legend>
           <div className="mt-2 space-y-2">
             {ACTION_TYPES.map((type, index) => (
               <label
@@ -240,9 +249,10 @@ export function DecisionForm({ submission, canRecordDecision, reviewStatus }: De
 
         <div className="space-y-1.5">
           <label htmlFor={IDS.note} className="block text-sm font-medium">
-            Rationale <span className="font-normal text-zinc-500">(required)</span>
+            Rationale{' '}
+            <span className="font-normal text-zinc-500 dark:text-zinc-400">(required)</span>
           </label>
-          <p id={IDS.noteHint} className="text-xs text-zinc-500">
+          <p id={IDS.noteHint} className="text-xs text-zinc-500 dark:text-zinc-400">
             Explain your decision in {NOTE_MIN_LENGTH}–{NOTE_MAX_LENGTH} characters. Spaces at the
             start and end don&apos;t count.
           </p>
@@ -265,7 +275,7 @@ export function DecisionForm({ submission, canRecordDecision, reviewStatus }: De
             id={IDS.noteCount}
             className={cn(
               'text-xs tabular-nums',
-              tooLong ? 'text-red-600 dark:text-red-400' : 'text-zinc-500'
+              tooLong ? 'text-red-600 dark:text-red-400' : 'text-zinc-500 dark:text-zinc-400'
             )}
           >
             {length} / {NOTE_MAX_LENGTH} characters{tooLong ? ' — over the limit' : ''}
@@ -303,7 +313,7 @@ export function DecisionForm({ submission, canRecordDecision, reviewStatus }: De
               ? 'Saving…'
               : 'Save decision'}
         </button>
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
           Decisions are recorded in this demo only. ESCALATE sends no alert, notification or welfare
           check.
         </p>
