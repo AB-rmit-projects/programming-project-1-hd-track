@@ -13,7 +13,7 @@ function request(path: string, cookie?: string) {
 const passedThrough = (res: Response) => res.headers.get('x-middleware-next') === '1'
 
 describe('proxy', () => {
-  it.each(['/dashboard', '/profile', '/settings', '/dashboard/incidents/abc'])(
+  it.each(['/dashboard', '/profile', '/dashboard/incidents/abc'])(
     'redirects %s to sign-in when there is no session cookie',
     (path) => {
       const res = proxy(request(path))
@@ -23,6 +23,10 @@ describe('proxy', () => {
       expect(location.searchParams.get('redirect')).toBe(path)
     }
   )
+
+  it('no longer guards /settings: the empty starter page was removed (Phase 6), so it is a 404', () => {
+    expect(passedThrough(proxy(request('/settings')))).toBe(true)
+  })
 
   it('lets protected routes through when a session cookie exists (the layout verifies it)', () => {
     expect(passedThrough(proxy(request('/dashboard', '__session=any-value')))).toBe(true)

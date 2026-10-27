@@ -1,18 +1,22 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Timestamp, type FirestoreError } from 'firebase/firestore'
-import { IncidentDashboard } from '@/features/incidents/components/IncidentDashboard'
+import {
+  IncidentDashboard,
+  resetRememberedQueueViews,
+} from '@/features/incidents/components/IncidentDashboard'
 import {
   useIncidentDashboard,
   type IncidentDashboardState,
 } from '@/features/incidents/hooks/useIncidentDashboard'
 import { parseIncident } from '@/features/incidents/incidentRow'
 import { CAUSE_CATEGORY_LABELS } from '@/features/incidents/labels'
+import { DEFAULT_SORT, sortRows } from '@/features/incidents/queueView'
 import { deriveReviewSummary } from '@/features/incidents/reviewSummary'
 import type { IncidentRow, ReviewSummary } from '@/features/incidents/types'
 import { useAuth } from '@/hooks/useAuth'
-import { formatDatetime } from '@/lib/utils'
+import { formatMelbourneDateTime } from '@/lib/melbourneTime'
 import type { AuthContextValue } from '@/types/auth'
 // The seed script lives outside src/, so the @/ alias cannot reach it.
 import { buildSeedIncidents } from '../../../../scripts/seed-incidents/dataset'
@@ -34,6 +38,7 @@ function seededRows(owner: string): IncidentRow[] {
   return buildSeedIncidents(owner, NOW).map(({ id, data }) => {
     const parsed = parseIncident(id, {
       ...data,
+      reportedAt: Timestamp.fromDate(data.reportedAt),
       lastSignalAt: Timestamp.fromDate(data.lastSignalAt),
       createdAt: Timestamp.fromDate(data.createdAt),
     })
@@ -125,7 +130,11 @@ function expectNoIncidentData() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  resetRememberedQueueViews()
 })
+
+/** The queue's rows in the order shown by default (newest report first). */
+const shownOrder = (summary: ReviewSummary) => sortRows(summary.rows, DEFAULT_SORT)
 
 // ── Authentication ───────────────────────────────────────────────────────────
 
@@ -155,7 +164,7 @@ describe('IncidentDashboard — authentication', () => {
 
   it('shows the queue heading', () => {
     showDashboard(seededSummary(ALICE))
-    expect(screen.getByRole('heading', { name: 'SafeCall incident queue' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Incident queue' })).toBeInTheDocument()
   })
 })
 
@@ -203,9 +212,11 @@ describe('IncidentDashboard — loading, offline, stale and error states', () =>
   it('stale: keeps the counts and queue, with a neutral cached-data warning and Retry', async () => {
     showDashboard(seededSummary(ALICE, ['INC-001']), { status: 'stale' })
 
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Showing cached data; information may be out of date.'
-    )
+    expect(
+      screen
+        .getByText('Showing cached data; information may be out of date.')
+        .closest('[role=status]')
+    ).toBeInTheDocument()
     expect(statValues()).toEqual({ total: '50', awaiting: '49', reviewed: '1' })
     expect(tableRows()).toHaveLength(50)
 
@@ -322,7 +333,7 @@ describe('IncidentDashboard — 50 seeded incidents', () => {
     expect(statValues()).toEqual({ total: '50', awaiting: '49', reviewed: '1' })
   })
 
-  it('renders all 50 incidents in the table and in the card list, in queue order', () => {
+  it('renders all 50 incidents in the table and in the card list, newest report first', () => {
     const summary = seededSummary(ALICE, ['INC-007'])
     showDashboard(summary)
 
@@ -330,8 +341,13 @@ describe('IncidentDashboard — 50 seeded incidents', () => {
     expect(within(cardList()).getAllByRole('listitem')).toHaveLength(50)
 
     const shownCodes = tableRows().map((row) => within(row).getAllByRole('link')[0]?.textContent)
-    expect(shownCodes).toEqual(summary.rows.map((row) => row.incidentCode))
-    expect(shownCodes.at(-1)).toBe('INC-007') // the only reviewed incident sorts last
+    expect(shownCodes).toEqual(shownOrder(summary).map((row) => row.incidentCode))
+    expect(shownCodes[0]).toBe('INC-049') // reported 20 Oct, 8:12 pm
+    expect(shownCodes.at(-1)).toBe('INC-007') // reported 1 Sep, 7:22 am (reviewed, still in time order)
+    const cardCodes = within(cardList())
+      .getAllByRole('link')
+      .map((link) => link.textContent)
+    expect(cardCodes).toEqual(shownCodes)
   })
 
   it('shows every field of a row with readable labels', () => {
@@ -344,14 +360,19 @@ describe('IncidentDashboard — 50 seeded incidents', () => {
     expect(cells.getByText(incident.deviceId!)).toBeInTheDocument()
     expect(row).toHaveTextContent(`${incident.suburb} ${incident.postcode}`)
     expect(
-      cells.getByText(incident.status === 'OFFLINE' ? 'Offline' : 'Silent')
+      cells.getByText(incident.status === 'OFFLINE' ? 'Pendant offline' : 'Pendant silent')
     ).toBeInTheDocument()
     expect(cells.getByText(CAUSE_CATEGORY_LABELS[incident.causeCategory!])).toBeInTheDocument()
     expect(cells.getByText('Awaiting review')).toBeInTheDocument()
 
-    const time = row.querySelector('time')
-    expect(time).toHaveAttribute('dateTime', incident.lastSignalAt!.toISOString())
-    expect(time).toHaveTextContent(formatDatetime(incident.lastSignalAt!))
+    // Reported, then last signal — both in Melbourne time with the zone.
+    const [reported, lastSignal] = row.querySelectorAll('time')
+    expect(reported).toHaveAttribute('dateTime', '2026-09-04T08:23:40.000Z')
+    expect(reported).toHaveTextContent('Fri, 4 Sept 2026, 6:23 pm AEST')
+    expect(reported).toHaveTextContent(formatMelbourneDateTime(incident.reportedAt!))
+    expect(lastSignal).toHaveAttribute('dateTime', incident.lastSignalAt!.toISOString())
+    expect(lastSignal).toHaveTextContent('Fri, 4 Sept 2026, 5:48 pm AEST')
+    expect(row).toHaveTextContent('Review')
   })
 
   it('shows both review statuses, both connectivity statuses and all five cause labels', () => {
@@ -360,8 +381,8 @@ describe('IncidentDashboard — 50 seeded incidents', () => {
 
     expect(t.getAllByText('Awaiting review')).toHaveLength(49)
     expect(t.getAllByText('Reviewed')).toHaveLength(1)
-    expect(t.getAllByText('Offline').length).toBeGreaterThan(0)
-    expect(t.getAllByText('Silent').length).toBeGreaterThan(0)
+    expect(t.getAllByText('Pendant offline')).toHaveLength(36)
+    expect(t.getAllByText('Pendant silent')).toHaveLength(14)
     for (const label of Object.values(CAUSE_CATEGORY_LABELS)) {
       expect(t.getAllByText(label).length).toBeGreaterThan(0)
     }
@@ -375,7 +396,7 @@ describe('IncidentDashboard — 50 seeded incidents', () => {
       const links = within(container).getAllByRole('link')
       expect(links).toHaveLength(50)
       links.forEach((link, i) => {
-        const incident = summary.rows[i]!
+        const incident = shownOrder(summary)[i]!
         expect(link).toHaveAccessibleName(`Open incident ${incident.incidentCode}`)
         expect(link).toHaveAttribute(
           'href',
@@ -468,21 +489,11 @@ describe('IncidentDashboard — review-status tabs', () => {
     expect(tableRows()).toHaveLength(50)
   })
 
-  it('keyboard selection scrolls the chosen tab into view (narrow phones scroll the row)', async () => {
-    const scrollIntoView = vi.fn()
-    Element.prototype.scrollIntoView = scrollIntoView // jsdom does not implement it
-    try {
-      const user = userEvent.setup()
-      showDashboard(seededSummary(ALICE, REVIEWED))
-      tab(/^All/).focus()
-      await user.keyboard('{End}')
-
-      expect(tab(/^Reviewed/)).toHaveFocus()
-      expect(scrollIntoView).toHaveBeenLastCalledWith({ block: 'nearest', inline: 'nearest' })
-      expect(scrollIntoView.mock.contexts.at(-1)).toBe(tab(/^Reviewed/))
-    } finally {
-      delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
-    }
+  it('fits the three tabs across a narrow phone without sideways scrolling', () => {
+    showDashboard(seededSummary(ALICE, REVIEWED))
+    const tablist = screen.getByRole('tablist')
+    expect(tablist).toHaveClass('grid', 'grid-cols-3', 'sm:flex')
+    expect(tablist.parentElement).not.toHaveClass('overflow-x-auto')
   })
 
   it('an empty tab explains itself', async () => {
@@ -546,12 +557,13 @@ describe('IncidentDashboard — malformed fields', () => {
     const cells = within(row)
     expect(cells.getByText('Unknown')).toBeInTheDocument()
     expect(cells.getByText('Unrecognised category')).toBeInTheDocument()
-    // Cells after the row header: device, location, status, cause, last signal, review.
-    const [device, location, , , lastSignal] = cells.getAllByRole('cell')
-    expect(device).toHaveTextContent('—Not recorded') // "—" on screen, words for screen readers
+    // The row header holds the code and device; then location, pendant, cause,
+    // reported with the last signal beneath, review and the open cue.
+    expect(cells.getByRole('rowheader')).toHaveTextContent('INC-900—Not recorded') // device: "—" on screen, words for screen readers
+    const [location, , , times] = cells.getAllByRole('cell')
     expect(location).toHaveTextContent('—Not recorded 3000')
-    expect(lastSignal).toHaveTextContent(/^Not recorded$/)
-    expect(lastSignal?.querySelector('time')).toBeNull()
+    expect(times).toHaveTextContent(/^Not recordedLast signal Not recorded$/)
+    expect(row.querySelector('time')).toBeNull()
   })
 
   it('no data-quality warning when every field is valid', () => {
@@ -595,5 +607,214 @@ describe('IncidentDashboard — account switching', () => {
       expect(link.getAttribute('href')).toContain(encodeURIComponent(`${BOB}_`))
       expect(link.getAttribute('href')).not.toContain(ALICE)
     }
+  })
+})
+
+// ── Phase 6: search, filters and sorting ─────────────────────────────────────
+
+describe('IncidentDashboard — search, filters and sorting (Phase 6)', () => {
+  const searchBox = () => screen.getByRole('searchbox', { name: 'Search' })
+  const connectivity = () => screen.getByRole('combobox', { name: 'Pendant connectivity' })
+  const sortBy = () => screen.getByRole('combobox', { name: 'Sort by' })
+  const from = () => screen.getByLabelText('Reported from')
+  const to = () => screen.getByLabelText('Reported to')
+  const shownCodes = () =>
+    tableRows().map((row) => within(row).getAllByRole('link')[0]?.textContent ?? '')
+  const resultLine = () =>
+    screen
+      .getAllByRole('status')
+      .find((el) => /incidents? (match|\.)|Showing all/.test(el.textContent ?? ''))
+  const setDates = (fromValue: string, toValue: string) => {
+    fireEvent.change(from(), { target: { value: fromValue } })
+    fireEvent.change(to(), { target: { value: toValue } })
+  }
+
+  it('starts unfiltered: all 50 rows, the full count, Clear filters disabled', () => {
+    showDashboard(seededSummary(ALICE))
+    expect(tableRows()).toHaveLength(50)
+    expect(resultLine()).toHaveTextContent('Showing all 50 incidents.')
+    expect(screen.getByRole('button', { name: 'Clear filters' })).toBeDisabled()
+    expect(sortBy()).toHaveValue('REPORTED_DESC')
+  })
+
+  it.each([
+    ['suburb, any case', 'BALLARAT', ['INC-001']],
+    ['postcode', '3550', ['INC-002']],
+    ['incident code without the hyphen, padded with spaces', '   inc005  ', ['INC-005']],
+    ['several words must all match', 'lakes   3909', ['INC-018']],
+  ])('searches by %s', async (_label, query, expected) => {
+    const user = userEvent.setup()
+    showDashboard(seededSummary(ALICE))
+    await user.type(searchBox(), query)
+    expect(shownCodes()).toEqual(expected)
+    expect(resultLine()).toHaveTextContent(`${expected.length} of 50 incidents match your filters.`)
+  })
+
+  it('searches by device ID', async () => {
+    const user = userEvent.setup()
+    const summary = seededSummary(ALICE)
+    showDashboard(summary)
+    const device = summary.rows.find((row) => row.incidentCode === 'INC-010')!.deviceId!
+    await user.type(searchBox(), device.toLowerCase())
+    expect(shownCodes()).toEqual(['INC-010'])
+  })
+
+  it('filters by pendant connectivity without changing the global counts', async () => {
+    const user = userEvent.setup()
+    showDashboard(seededSummary(ALICE, ['INC-006']))
+    await user.selectOptions(connectivity(), 'SILENT')
+
+    expect(tableRows()).toHaveLength(14)
+    expect(within(table()).getAllByText('Pendant silent')).toHaveLength(14)
+    expect(within(table()).queryByText('Pendant offline')).toBeNull()
+    expect(statValues()).toEqual({ total: '50', awaiting: '49', reviewed: '1' })
+    expect(screen.getByRole('tab', { name: /^All/ })).toHaveTextContent('50')
+  })
+
+  it('date range distinguishes September from October (25 each), inclusive Melbourne dates', () => {
+    showDashboard(seededSummary(ALICE))
+    setDates('2026-09-01', '2026-09-30')
+    expect(tableRows()).toHaveLength(25)
+    setDates('2026-10-01', '2026-10-20')
+    expect(tableRows()).toHaveLength(25)
+  })
+
+  it('date range isolates the fictional flood advisory period (21–25 Sep)', () => {
+    showDashboard(seededSummary(ALICE))
+    setDates('2026-09-21', '2026-09-25')
+    expect(shownCodes()).toEqual(['INC-044', 'INC-029', 'INC-025', 'INC-004', 'INC-012'])
+    expect(resultLine()).toHaveTextContent('5 of 50 incidents match your filters.')
+  })
+
+  it('a one-day range includes incidents on that Melbourne date only, at either end of the day', () => {
+    showDashboard(seededSummary(ALICE))
+    // 4 Oct: INC-036, reported 3:09 am AEDT — 3 Oct in UTC.
+    setDates('2026-10-04', '2026-10-04')
+    expect(shownCodes()).toEqual(['INC-036'])
+    // 20 Oct: INC-006 (9:30 am) and INC-049 (8:12 pm AEDT, 09:12 UTC).
+    setDates('2026-10-20', '2026-10-20')
+    expect(shownCodes()).toEqual(['INC-049', 'INC-006'])
+  })
+
+  it('combines filters with the review tabs: silent pendants in October, then only reviewed ones', async () => {
+    const user = userEvent.setup()
+    showDashboard(seededSummary(ALICE, ['INC-008', 'INC-001']))
+    await user.selectOptions(connectivity(), 'SILENT')
+    setDates('2026-10-01', '2026-10-31')
+    expect(shownCodes()).toEqual([
+      'INC-006',
+      'INC-048',
+      'INC-045',
+      'INC-008',
+      'INC-041',
+      'INC-034',
+      'INC-039',
+    ])
+
+    await user.click(screen.getByRole('tab', { name: /^Reviewed/ }))
+    expect(shownCodes()).toEqual(['INC-008'])
+    expect(resultLine()).toHaveTextContent('1 of 2 reviewed incidents match your filters.')
+  })
+
+  it('an inverted date range explains itself and shows no incidents', () => {
+    showDashboard(seededSummary(ALICE))
+    setDates('2026-10-10', '2026-09-10')
+    expect(screen.getByRole('alert')).toHaveTextContent('“Reported from” is after “Reported to”')
+    expect(from()).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.queryByRole('table')).toBeNull()
+    expect(screen.getByText('No incidents match your search and filters.')).toBeInTheDocument()
+  })
+
+  it('a search with no matches offers to clear the filters, which restores everything', async () => {
+    const user = userEvent.setup()
+    showDashboard(seededSummary(ALICE))
+    await user.type(searchBox(), 'nowhere')
+    await user.selectOptions(connectivity(), 'OFFLINE')
+
+    expect(screen.getByText('No incidents match your search and filters.')).toBeInTheDocument()
+    expect(resultLine()).toHaveTextContent('0 of 50 incidents match your filters.')
+    const clearButtons = screen.getAllByRole('button', { name: 'Clear filters' })
+    expect(clearButtons).toHaveLength(2)
+    await user.click(clearButtons[1]!)
+
+    expect(tableRows()).toHaveLength(50)
+    expect(searchBox()).toHaveValue('')
+    expect(connectivity()).toHaveValue('ALL')
+  })
+
+  it.each([
+    ['REPORTED_ASC', 'INC-007', 'INC-049'],
+    ['SIGNAL_DESC', 'INC-049', 'INC-007'],
+    ['SIGNAL_ASC', 'INC-007', 'INC-049'],
+    ['CODE_ASC', 'INC-001', 'INC-050'],
+    ['LOCATION_ASC', 'INC-024', 'INC-032'], // Ararat … Wonthaggi
+  ])('sorts by %s', async (sort, first, last) => {
+    const user = userEvent.setup()
+    showDashboard(seededSummary(ALICE))
+    await user.selectOptions(sortBy(), sort)
+    expect(shownCodes()[0]).toBe(first)
+    expect(shownCodes().at(-1)).toBe(last)
+    expect(new Set(shownCodes()).size).toBe(50)
+  })
+
+  it('remembers the tab, filters and sort for the same operator when the queue is reopened', async () => {
+    const user = userEvent.setup()
+    signedInAs(ALICE)
+    hookReturns(dashboardState({ summary: seededSummary(ALICE, ['INC-001']) }))
+    const first = render(<IncidentDashboard />)
+    await user.type(searchBox(), 'ballarat')
+    await user.selectOptions(sortBy(), 'CODE_ASC')
+    await user.click(screen.getByRole('tab', { name: /^Reviewed/ }))
+    first.unmount()
+
+    render(<IncidentDashboard />)
+    expect(searchBox()).toHaveValue('ballarat')
+    expect(sortBy()).toHaveValue('CODE_ASC')
+    expect(screen.getByRole('tab', { name: /^Reviewed/ })).toHaveAttribute('aria-selected', 'true')
+    expect(shownCodes()).toEqual(['INC-001'])
+  })
+
+  it('every control has a visible label and the result count is announced politely', () => {
+    showDashboard(seededSummary(ALICE))
+    for (const control of [searchBox(), connectivity(), from(), to(), sortBy()]) {
+      expect(control).toHaveAccessibleName()
+    }
+    expect(resultLine()).toHaveAttribute('aria-live', 'polite')
+    expect(screen.getByRole('region', { name: 'Search and filter incidents' })).toBeInTheDocument()
+  })
+})
+
+describe('IncidentDashboard — version 1 (legacy) incidents before migration', () => {
+  function legacyRows(owner: string): IncidentRow[] {
+    return buildSeedIncidents(owner, NOW).map(({ id, data }) => {
+      const { reportedAt: _reported, ...v1 } = data
+      const parsed = parseIncident(id, {
+        ...v1,
+        _schemaVersion: 1,
+        lastSignalAt: Timestamp.fromDate(data.lastSignalAt),
+        createdAt: Timestamp.fromDate(data.createdAt),
+      })
+      if (!parsed.ok) throw new Error(`legacy record ${id} was rejected`)
+      return parsed.row
+    })
+  }
+
+  it('lists every legacy record without a data-quality warning, saying the report time is not recorded', () => {
+    showDashboard(summaryFor(legacyRows(ALICE), ALICE))
+    expect(tableRows()).toHaveLength(50)
+    expect(statValues()).toEqual({ total: '50', awaiting: '50', reviewed: '0' })
+    expect(screen.queryByText(/missing or unexpected fields/)).toBeNull()
+    expect(screen.getByText('50 incidents are in the earlier data format.')).toBeInTheDocument()
+    expect(within(table()).getAllByText('Not recorded in this earlier-format record')).toHaveLength(
+      50
+    )
+  })
+
+  it('a date filter leaves legacy records out instead of guessing a date', () => {
+    const rows = [...legacyRows(ALICE).slice(0, 2), ...seededRows(ALICE).slice(2)]
+    showDashboard(summaryFor(rows, ALICE))
+    fireEvent.change(screen.getByLabelText('Reported from'), { target: { value: '2026-09-01' } })
+    expect(tableRows()).toHaveLength(48)
+    expect(screen.queryByRole('link', { name: 'Open incident INC-001' })).toBeNull()
   })
 })

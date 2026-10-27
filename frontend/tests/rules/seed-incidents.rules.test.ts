@@ -26,6 +26,7 @@ import {
   type SeedIncidentData,
   type SeedRecord,
 } from '../../scripts/seed-incidents/dataset'
+import { melbourneLocalToUtc } from '../../src/lib/melbourneTime'
 import { SCENARIOS } from '../../scripts/seed-incidents/scenarios'
 import { adminIncidentStore, runSeed, type IncidentStore } from '../../scripts/seed-incidents/seed'
 
@@ -115,18 +116,22 @@ describe('seed against an empty emulator database', () => {
       expect(stored?.id).toBe(`${owner}_INC-${String(index + 1).padStart(3, '0')}`)
       const data = stored?.data() ?? {}
       expect(Object.keys(data).sort()).toEqual(Object.keys(record.data).sort())
-      expect(Object.keys(data)).toHaveLength(15)
+      expect(Object.keys(data)).toHaveLength(16)
 
       // Plain Dates were stored as Firestore Timestamps, to the millisecond.
+      expect(data.reportedAt).toBeInstanceOf(AdminTimestamp)
       expect(data.lastSignalAt).toBeInstanceOf(AdminTimestamp)
       expect(data.createdAt).toBeInstanceOf(AdminTimestamp)
       expect((data.createdAt as AdminTimestamp).toMillis()).toBe(NOW.getTime())
+      expect((data.reportedAt as AdminTimestamp).toMillis()).toBe(
+        melbourneLocalToUtc(SCENARIOS[index]!.reported).getTime()
+      )
       expect((data.lastSignalAt as AdminTimestamp).toMillis()).toBe(
-        NOW.getTime() - (SCENARIOS[index]?.signalOffsetMinutes ?? 0) * 60_000
+        melbourneLocalToUtc(SCENARIOS[index]!.lastSignal).getTime()
       )
 
-      const { lastSignalAt: _l, createdAt: _c, ...rest } = record.data
-      expect(data).toMatchObject({ ...rest, isSimulated: true, _schemaVersion: 1, ownerUid: owner })
+      const { reportedAt: _r, lastSignalAt: _l, createdAt: _c, ...rest } = record.data
+      expect(data).toMatchObject({ ...rest, isSimulated: true, _schemaVersion: 2, ownerUid: owner })
       categories[String(data.causeCategory)] = (categories[String(data.causeCategory)] ?? 0) + 1
     }
     expect(categories).toEqual(CATEGORY_DISTRIBUTION)
@@ -209,7 +214,7 @@ describe('real ALREADY_EXISTS from create() after a stale preflight', () => {
   it('re-reads and reports a conflict for a mismatching document without touching it', async () => {
     const records = recordsFor('seed-it-race-conflict')
     const target = records[4]!
-    await adminCreate(target.id, { ...target.data, _schemaVersion: 2 })
+    await adminCreate(target.id, { ...target.data, _schemaVersion: 1 }) // a version 1 document
     const before = await snapshotIncidents()
 
     const report = await runSeed(stalePreflight(), records, { write: true })

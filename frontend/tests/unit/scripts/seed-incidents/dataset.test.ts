@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 // The seed script lives outside src/, so the @/ alias cannot reach it.
 import {
   CATEGORY_DISTRIBUTION,
+  LATEST_REPORTED_AT,
   SEED_INCIDENT_COUNT,
   buildSeedIncidents,
   type SeedRecord,
@@ -12,11 +13,12 @@ import {
   SCENARIOS,
   SILENT_MAX_HEARTBEAT_AGE_MINUTES,
 } from '../../../../scripts/seed-incidents/scenarios'
+import { melbourneDateKey, toMelbourneLocal } from '@/lib/melbourneTime'
 
 const OWNER = 'demoOperatorUid01'
 const NOW = new Date('2026-10-21T00:00:00.000Z')
 
-/** The 15 required fields of the Incident type (frontend/src/types/firestore.ts). */
+/** The 16 required fields of the Incident type, schema v2 (frontend/src/types/firestore.ts). */
 const INCIDENT_FIELDS = [
   'ownerUid',
   'incidentCode',
@@ -25,6 +27,7 @@ const INCIDENT_FIELDS = [
   'suburb',
   'state',
   'postcode',
+  'reportedAt',
   'lastSignalAt',
   'causeCategory',
   'likelyCause',
@@ -134,8 +137,8 @@ describe('seed dataset distribution', () => {
 })
 
 describe('seed dataset schema', () => {
-  it('has exactly the 15 Incident fields on every record', () => {
-    expect(INCIDENT_FIELDS).toHaveLength(15)
+  it('has exactly the 16 Incident fields on every record', () => {
+    expect(INCIDENT_FIELDS).toHaveLength(16)
     for (const r of records) {
       expect(Object.keys(r.data).sort()).toEqual([...INCIDENT_FIELDS].sort())
     }
@@ -149,7 +152,7 @@ describe('seed dataset schema', () => {
       expect(typeof data.suburb).toBe('string')
       expect(data.suburb.length).toBeGreaterThan(0)
       expect(data.isSimulated).toBe(true)
-      expect(data._schemaVersion).toBe(1)
+      expect(data._schemaVersion).toBe(2)
       for (const text of [data.likelyCause, data.evidenceSummary, data.recommendedAction]) {
         expect(typeof text).toBe('string')
         expect(text.length).toBeGreaterThan(20)
@@ -161,22 +164,35 @@ describe('seed dataset schema', () => {
     expect(new Set(records.map((r) => r.data.suburb)).size).toBe(50)
   })
 
-  it('derives timestamps from the injected now', () => {
-    for (const { data } of records) {
+  it('uses now only for createdAt (the real write time); simulated times come from the timeline', () => {
+    const later = buildSeedIncidents(OWNER, new Date('2026-11-30T12:00:00.000Z'))
+    for (const [i, { data }] of records.entries()) {
       expect(data.createdAt).toBeInstanceOf(Date)
+      expect(data.reportedAt).toBeInstanceOf(Date)
       expect(data.lastSignalAt).toBeInstanceOf(Date)
       expect(data.createdAt.getTime()).toBe(NOW.getTime())
-      const ageMinutes = (NOW.getTime() - data.lastSignalAt.getTime()) / 60_000
-      expect(ageMinutes).toBeGreaterThanOrEqual(10)
-      expect(ageMinutes).toBeLessThanOrEqual(72 * 60)
+      expect(later[i]!.data.reportedAt.getTime()).toBe(data.reportedAt.getTime())
+      expect(later[i]!.data.lastSignalAt.getTime()).toBe(data.lastSignalAt.getTime())
     }
   })
 
-  it('does not share Date instances with the caller or between fields', () => {
+  it('does not share Date instances with the caller, between fields or between records', () => {
     const now = new Date(NOW.getTime())
-    const [first] = buildSeedIncidents(OWNER, now)
+    const [first, second] = buildSeedIncidents(OWNER, now)
     now.setFullYear(2000)
     expect(first?.data.createdAt.getTime()).toBe(NOW.getTime())
+    first!.data.reportedAt.setFullYear(2000)
+    expect(buildSeedIncidents(OWNER, NOW)[0]!.data.reportedAt.getFullYear()).toBe(2026)
+    expect(first!.data.reportedAt).not.toBe(second!.data.reportedAt)
+  })
+
+  it('refuses a seed time before the latest report time (no future-dated incidents)', () => {
+    expect(LATEST_REPORTED_AT.toISOString()).toBe('2026-10-20T09:12:07.000Z')
+    expect(() => buildSeedIncidents(OWNER, new Date(LATEST_REPORTED_AT.getTime() - 1))).toThrow(
+      /future/
+    )
+    expect(() => buildSeedIncidents(OWNER, new Date(Number.NaN))).toThrow(/future/)
+    expect(buildSeedIncidents(OWNER, LATEST_REPORTED_AT)).toHaveLength(50)
   })
 
   it('rejects owner UIDs that would break the rules incidentId pattern', () => {
@@ -187,37 +203,143 @@ describe('seed dataset schema', () => {
   })
 })
 
-describe('seed dataset signal ages', () => {
-  const ageMinutes = (r: SeedRecord) => (NOW.getTime() - r.data.lastSignalAt.getTime()) / 60_000
+describe('seed dataset timeline (schema v2)', () => {
+  const gapMinutes = (r: SeedRecord) =>
+    (r.data.reportedAt.getTime() - r.data.lastSignalAt.getTime()) / 60_000
+  const local = (date: Date) => toMelbourneLocal(date)
+  const hour = (date: Date) => Number(local(date).slice(11, 13))
+  const byCode = (code: string) => records.find((r) => r.data.incidentCode === code)!
   const silent = records.filter((r) => r.data.status === 'SILENT')
   const offline = records.filter((r) => r.data.status === 'OFFLINE')
+
+  it('reports every incident between 1 September and 20 October 2026 (Melbourne dates)', () => {
+    for (const r of records) {
+      const day = melbourneDateKey(r.data.reportedAt)
+      expect(day >= '2026-09-01' && day <= '2026-10-20', r.data.incidentCode).toBe(true)
+    }
+  })
+
+  it('splits the incidents 25 September / 25 October', () => {
+    expect(countBy(records, (r) => melbourneDateKey(r.data.reportedAt).slice(0, 7))).toEqual({
+      '2026-09': 25,
+      '2026-10': 25,
+    })
+  })
+
+  it('keeps every time in the past relative to the real write time', () => {
+    for (const { data } of records) {
+      expect(data.lastSignalAt.getTime()).toBeLessThan(data.reportedAt.getTime())
+      expect(data.reportedAt.getTime()).toBeLessThanOrEqual(data.createdAt.getTime())
+    }
+  })
+
+  it('spreads report times over the whole day and night', () => {
+    const quarters = countBy(records, (r) => String(Math.floor(hour(r.data.reportedAt) / 6)))
+    expect(Object.keys(quarters).sort()).toEqual(['0', '1', '2', '3'])
+    for (const count of Object.values(quarters)) expect(count).toBeGreaterThanOrEqual(8)
+  })
+
+  it('has no repeated clock pattern: varied minutes and seconds, no 4:33 pm cluster', () => {
+    const minutes = new Set(records.map((r) => local(r.data.reportedAt).slice(14, 16)))
+    expect(minutes.size).toBeGreaterThanOrEqual(30)
+    const times = new Set(records.map((r) => local(r.data.reportedAt).slice(11, 16)))
+    expect(times.size).toBe(50)
+    expect(records.filter((r) => local(r.data.reportedAt).slice(11, 16) === '16:33')).toHaveLength(
+      0
+    )
+    expect(records.every((r) => r.data.reportedAt.getUTCSeconds() !== 0)).toBe(true)
+    expect(new Set(records.map((r) => r.data.reportedAt.getUTCSeconds())).size).toBeGreaterThan(25)
+  })
+
+  it('uses irregular signal gaps, not a fixed offset or round numbers', () => {
+    const gaps = records.map(gapMinutes)
+    expect(new Set(gaps.map((g) => Math.round(g))).size).toBeGreaterThanOrEqual(35)
+    expect(gaps.filter((g) => Number.isInteger(g) && g % 5 === 0)).toHaveLength(0)
+  })
 
   it('uses a 60-minute demonstration threshold for SILENT heartbeats', () => {
     expect(SILENT_MAX_HEARTBEAT_AGE_MINUTES).toBe(60)
   })
 
-  it('gives every SILENT pendant a recent heartbeat (10–60 minutes old)', () => {
+  it('gives every SILENT pendant a recent heartbeat (10–60 minutes before the report)', () => {
     expect(silent).toHaveLength(14)
     for (const r of silent) {
-      expect(ageMinutes(r), r.data.incidentCode).toBeGreaterThanOrEqual(10)
-      expect(ageMinutes(r), r.data.incidentCode).toBeLessThanOrEqual(
+      expect(gapMinutes(r), r.data.incidentCode).toBeGreaterThanOrEqual(10)
+      expect(gapMinutes(r), r.data.incidentCode).toBeLessThanOrEqual(
         SILENT_MAX_HEARTBEAT_AGE_MINUTES
       )
     }
   })
 
-  it('keeps the broad 10-minute to 72-hour range, with the long gaps on OFFLINE incidents', () => {
-    const all = records.map(ageMinutes)
-    expect(Math.min(...all)).toBe(10)
-    expect(Math.max(...all)).toBe(72 * 60)
-    const longGaps = records.filter((r) => ageMinutes(r) > SILENT_MAX_HEARTBEAT_AGE_MINUTES)
-    expect(longGaps.every((r) => r.data.status === 'OFFLINE')).toBe(true)
-    expect(offline.filter((r) => ageMinutes(r) >= 24 * 60).length).toBeGreaterThanOrEqual(5)
+  it('puts planned-maintenance losses in an overnight window, reported soon after', () => {
+    const maintenance = records.filter((r) => r.data.causeCategory === 'PLANNED_MAINTENANCE')
+    expect(maintenance).toHaveLength(10)
+    for (const r of maintenance) {
+      expect(hour(r.data.lastSignalAt), r.data.incidentCode).toBeLessThan(4)
+      expect(gapMinutes(r), r.data.incidentCode).toBeLessThanOrEqual(90)
+    }
   })
 
-  it('keeps planned-maintenance signal gaps short enough to sit inside a maintenance window', () => {
-    for (const r of records.filter((x) => x.data.causeCategory === 'PLANNED_MAINTENANCE')) {
-      expect(ageMinutes(r), r.data.incidentCode).toBeLessThanOrEqual(4 * 60)
+  it('lets battery losses build up over hours, and keeps long gaps on OFFLINE incidents', () => {
+    const battery = records.filter((r) => r.data.likelyCause.includes('battery'))
+    expect(battery).toHaveLength(6)
+    for (const r of battery) {
+      expect(gapMinutes(r), r.data.incidentCode).toBeGreaterThanOrEqual(6 * 60)
+      expect(gapMinutes(r), r.data.incidentCode).toBeLessThanOrEqual(20 * 60)
+    }
+    const longGaps = records.filter((r) => gapMinutes(r) > SILENT_MAX_HEARTBEAT_AGE_MINUTES)
+    expect(longGaps.every((r) => r.data.status === 'OFFLINE')).toBe(true)
+    expect(offline.every((r) => gapMinutes(r) <= 20 * 60)).toBe(true)
+  })
+
+  it('groups hazard incidents in their fictional advisory periods', () => {
+    const hazardDays = (kind: string) =>
+      records
+        .filter((r) => r.data.evidenceSummary.includes(`simulated ${kind} advisory`))
+        .map((r) => melbourneDateKey(r.data.reportedAt))
+    for (const day of hazardDays('flood'))
+      expect(day >= '2026-09-21' && day <= '2026-09-25').toBe(true)
+    for (const day of hazardDays('severe-storm'))
+      expect(day >= '2026-10-02' && day <= '2026-10-06').toBe(true)
+    for (const day of hazardDays('bushfire'))
+      expect(day >= '2026-10-13' && day <= '2026-10-18').toBe(true)
+    expect(hazardDays('flood')).toHaveLength(3)
+    expect(hazardDays('severe-storm')).toHaveLength(2)
+    expect(hazardDays('bushfire')).toHaveLength(3)
+  })
+
+  it('handles the start of daylight saving: INC-036 spans 01:47 AEST to 03:09 AEDT in 22 minutes', () => {
+    const r = byCode('INC-036')
+    expect(local(r.data.lastSignalAt)).toBe('2026-10-04T01:47:10')
+    expect(local(r.data.reportedAt)).toBe('2026-10-04T03:09:22')
+    expect(r.data.lastSignalAt.toISOString()).toBe('2026-10-03T15:47:10.000Z')
+    expect(r.data.reportedAt.toISOString()).toBe('2026-10-03T16:09:22.000Z')
+    expect(gapMinutes(r)).toBeCloseTo(22.2, 5)
+  })
+
+  it('pins representative CP8A timeline entries exactly', () => {
+    expect(byCode('INC-001').data.reportedAt.toISOString()).toBe('2026-09-04T08:23:40.000Z')
+    expect(local(byCode('INC-001').data.reportedAt)).toBe('2026-09-04T18:23:40')
+    expect(local(byCode('INC-005').data.reportedAt)).toBe('2026-10-13T16:08:53')
+    expect(local(byCode('INC-007').data.reportedAt)).toBe('2026-09-01T07:22:05')
+    expect(local(byCode('INC-049').data.reportedAt)).toBe('2026-10-20T20:12:07')
+  })
+
+  it('keeps incident codes as dataset references, not in date order', () => {
+    const chronological = [...records]
+      .sort((a, b) => a.data.reportedAt.getTime() - b.data.reportedAt.getTime())
+      .map((r) => r.data.incidentCode)
+    expect(chronological).not.toEqual(records.map((r) => r.data.incidentCode))
+  })
+
+  it('defines every scenario time as a valid Melbourne wall-clock time', () => {
+    for (const scenario of SCENARIOS) {
+      expect(scenario.reported).toMatch(/^2026-(09|10)-\d{2}T\d{2}:\d{2}:\d{2}$/)
+      expect(scenario.lastSignal < scenario.reported).toBe(true)
+    }
+    for (const [i, r] of records.entries()) {
+      expect(local(r.data.reportedAt)).toBe(SCENARIOS[i]!.reported)
+      expect(local(r.data.lastSignalAt)).toBe(SCENARIOS[i]!.lastSignal)
     }
   })
 })

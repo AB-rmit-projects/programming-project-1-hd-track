@@ -19,7 +19,14 @@ export interface IncidentRow {
   postcode: string | null
   status: Incident['status'] | null
   causeCategory: Incident['causeCategory'] | null
+  /** Simulated report time. Always null for a legacy (version 1) record, which has none. */
+  reportedAt: Date | null
   lastSignalAt: Date | null
+  /**
+   * A version 1 record from before the Phase 6 timeline: it has no report time,
+   * and its last-signal time was an offset from the seed time.
+   */
+  legacyTimeline: boolean
   dataIssues: Array<keyof Incident>
 }
 

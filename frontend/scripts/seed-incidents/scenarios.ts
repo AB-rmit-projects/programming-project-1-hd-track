@@ -37,11 +37,14 @@ interface ScenarioBase {
   /** Real Victorian postcode for the suburb, stored as a string. */
   postcode: string
   /**
-   * How long before seed time the simulated last signal was received:
-   * OFFLINE — when the heartbeat stopped; SILENT — the most recent heartbeat
-   * (at most SILENT_MAX_HEARTBEAT_AGE_MINUTES ago).
+   * Melbourne wall-clock time (`YYYY-MM-DDTHH:MM:SS`) of the last heartbeat
+   * received before the incident was reported. OFFLINE — when the heartbeat
+   * stopped; SILENT — the most recent heartbeat, at most
+   * SILENT_MAX_HEARTBEAT_AGE_MINUTES before `reported`.
    */
-  signalOffsetMinutes: number
+  lastSignal: string
+  /** Melbourne wall-clock time at which the fictional monitoring platform raised the incident. */
+  reported: string
 }
 
 export type Scenario =
@@ -56,8 +59,9 @@ export interface ScenarioText {
 
 /**
  * Maximum age, in minutes, of a SILENT pendant's most recent heartbeat
- * (`lastSignalAt`). A demonstration assumption for this fictional dataset,
- * not a verified SafeCall operational threshold.
+ * (`lastSignalAt`) when the incident is reported (`reportedAt`). A
+ * demonstration assumption for this fictional dataset, not a verified SafeCall
+ * operational threshold.
  */
 export const SILENT_MAX_HEARTBEAT_AGE_MINUTES = 60
 
@@ -186,129 +190,373 @@ export function scenarioText(scenario: Scenario, occurrence: number): ScenarioTe
  * Row i becomes INC-{i+1}. Kinds are interleaved so the queue does not read as
  * category blocks. Distribution: 15 outage · 12 device (6 offline + 6 silent) ·
  * 10 maintenance · 8 hazard (5 offline + 3 silent) · 5 inconclusive.
+ *
+ * Timeline (Phase 6, schema v2): historical fictional incidents reported
+ * between 1 September and 20 October 2026, 25 in each month, all in Melbourne
+ * time. Incident codes are dataset references, not chronological. Each
+ * scenario's times fit its evidence: maintenance losses fall in overnight
+ * windows, battery losses build up over hours, SILENT heartbeats are recent,
+ * and the fictional flood (21–25 Sep), storm (2–6 Oct) and bushfire
+ * (13–18 Oct) advisories group their hazard incidents. INC-036 straddles the
+ * start of daylight saving on 4 October (01:47 AEST → 03:09 AEDT, 22 minutes).
  */
 export const SCENARIOS: readonly Scenario[] = [
-  { kind: 'OUTAGE_OFFLINE', suburb: 'Ballarat', postcode: '3350', signalOffsetMinutes: 95 },
-  { kind: 'DEVICE_BATTERY_OFFLINE', suburb: 'Bendigo', postcode: '3550', signalOffsetMinutes: 410 },
-  { kind: 'MAINTENANCE_OFFLINE', suburb: 'Geelong', postcode: '3220', signalOffsetMinutes: 45 },
-  { kind: 'OUTAGE_OFFLINE', suburb: 'Shepparton', postcode: '3630', signalOffsetMinutes: 180 },
+  {
+    kind: 'OUTAGE_OFFLINE',
+    suburb: 'Ballarat',
+    postcode: '3350',
+    lastSignal: '2026-09-04T17:48:26',
+    reported: '2026-09-04T18:23:40',
+  },
+  {
+    kind: 'DEVICE_BATTERY_OFFLINE',
+    suburb: 'Bendigo',
+    postcode: '3550',
+    lastSignal: '2026-10-07T22:12:54',
+    reported: '2026-10-08T06:47:19',
+  },
+  {
+    kind: 'MAINTENANCE_OFFLINE',
+    suburb: 'Geelong',
+    postcode: '3220',
+    lastSignal: '2026-09-08T00:52:38',
+    reported: '2026-09-08T01:19:03',
+  },
+  {
+    kind: 'OUTAGE_OFFLINE',
+    suburb: 'Shepparton',
+    postcode: '3630',
+    lastSignal: '2026-09-22T07:55:12',
+    reported: '2026-09-22T08:46:30',
+  },
   {
     kind: 'HAZARD_OFFLINE',
     hazard: 'bushfire',
     suburb: 'Bright',
     postcode: '3741',
-    signalOffsetMinutes: 260,
+    lastSignal: '2026-10-13T15:22:17',
+    reported: '2026-10-13T16:08:53',
   },
   {
     kind: 'DEVICE_FAULT_SILENT',
     suburb: 'Warrnambool',
     postcode: '3280',
-    signalOffsetMinutes: 22,
+    lastSignal: '2026-10-20T08:52:26',
+    reported: '2026-10-20T09:30:14',
   },
-  { kind: 'OUTAGE_OFFLINE', suburb: 'Mildura', postcode: '3500', signalOffsetMinutes: 30 },
-  { kind: 'INCONCLUSIVE_SILENT', suburb: 'Traralgon', postcode: '3844', signalOffsetMinutes: 41 },
-  { kind: 'MAINTENANCE_OFFLINE', suburb: 'Wodonga', postcode: '3690', signalOffsetMinutes: 120 },
-  { kind: 'OUTAGE_OFFLINE', suburb: 'Sale', postcode: '3850', signalOffsetMinutes: 1440 },
-  { kind: 'DEVICE_BATTERY_OFFLINE', suburb: 'Horsham', postcode: '3400', signalOffsetMinutes: 960 },
+  {
+    kind: 'OUTAGE_OFFLINE',
+    suburb: 'Mildura',
+    postcode: '3500',
+    lastSignal: '2026-09-01T06:41:17',
+    reported: '2026-09-01T07:22:05',
+  },
+  {
+    kind: 'INCONCLUSIVE_SILENT',
+    suburb: 'Traralgon',
+    postcode: '3844',
+    lastSignal: '2026-10-12T13:34:26',
+    reported: '2026-10-12T14:12:58',
+  },
+  {
+    kind: 'MAINTENANCE_OFFLINE',
+    suburb: 'Wodonga',
+    postcode: '3690',
+    lastSignal: '2026-09-30T02:33:16',
+    reported: '2026-09-30T03:41:09',
+  },
+  {
+    kind: 'OUTAGE_OFFLINE',
+    suburb: 'Sale',
+    postcode: '3850',
+    lastSignal: '2026-10-07T21:53:07',
+    reported: '2026-10-07T22:29:38',
+  },
+  {
+    kind: 'DEVICE_BATTERY_OFFLINE',
+    suburb: 'Horsham',
+    postcode: '3400',
+    lastSignal: '2026-09-01T21:16:44',
+    reported: '2026-09-02T08:05:31',
+  },
   {
     kind: 'HAZARD_SILENT',
     hazard: 'flood',
     suburb: 'Echuca',
     postcode: '3564',
-    signalOffsetMinutes: 18,
+    lastSignal: '2026-09-21T16:02:41',
+    reported: '2026-09-21T16:51:08',
   },
-  { kind: 'OUTAGE_OFFLINE', suburb: 'Bairnsdale', postcode: '3875', signalOffsetMinutes: 15 },
-  { kind: 'MAINTENANCE_OFFLINE', suburb: 'Wangaratta', postcode: '3677', signalOffsetMinutes: 75 },
-  { kind: 'DEVICE_FAULT_SILENT', suburb: 'Swan Hill', postcode: '3585', signalOffsetMinutes: 47 },
-  { kind: 'OUTAGE_OFFLINE', suburb: 'Hamilton', postcode: '3300', signalOffsetMinutes: 230 },
-  { kind: 'INCONCLUSIVE_SILENT', suburb: 'Portland', postcode: '3305', signalOffsetMinutes: 33 },
+  {
+    kind: 'OUTAGE_OFFLINE',
+    suburb: 'Bairnsdale',
+    postcode: '3875',
+    lastSignal: '2026-10-09T09:26:45',
+    reported: '2026-10-09T10:51:02',
+  },
+  {
+    kind: 'MAINTENANCE_OFFLINE',
+    suburb: 'Wangaratta',
+    postcode: '3677',
+    lastSignal: '2026-10-19T01:58:13',
+    reported: '2026-10-19T02:35:49',
+  },
+  {
+    kind: 'DEVICE_FAULT_SILENT',
+    suburb: 'Swan Hill',
+    postcode: '3585',
+    lastSignal: '2026-09-03T09:58:09',
+    reported: '2026-09-03T10:31:52',
+  },
+  {
+    kind: 'OUTAGE_OFFLINE',
+    suburb: 'Hamilton',
+    postcode: '3300',
+    lastSignal: '2026-09-06T13:09:51',
+    reported: '2026-09-06T14:57:12',
+  },
+  {
+    kind: 'INCONCLUSIVE_SILENT',
+    suburb: 'Portland',
+    postcode: '3305',
+    lastSignal: '2026-09-09T15:12:04',
+    reported: '2026-09-09T15:49:37',
+  },
   {
     kind: 'HAZARD_OFFLINE',
     hazard: 'storm',
     suburb: 'Lakes Entrance',
     postcode: '3909',
-    signalOffsetMinutes: 150,
+    lastSignal: '2026-10-06T15:37:42',
+    reported: '2026-10-06T17:14:26',
   },
-  { kind: 'MAINTENANCE_OFFLINE', suburb: 'Colac', postcode: '3250', signalOffsetMinutes: 200 },
-  { kind: 'OUTAGE_OFFLINE', suburb: 'Benalla', postcode: '3672', signalOffsetMinutes: 60 },
+  {
+    kind: 'MAINTENANCE_OFFLINE',
+    suburb: 'Colac',
+    postcode: '3250',
+    lastSignal: '2026-09-09T01:41:12',
+    reported: '2026-09-09T02:28:47',
+  },
+  {
+    kind: 'OUTAGE_OFFLINE',
+    suburb: 'Benalla',
+    postcode: '3672',
+    lastSignal: '2026-09-12T11:27:46',
+    reported: '2026-09-12T13:02:19',
+  },
   {
     kind: 'DEVICE_BATTERY_OFFLINE',
     suburb: 'Castlemaine',
     postcode: '3450',
-    signalOffsetMinutes: 2160,
+    lastSignal: '2026-09-10T19:33:08',
+    reported: '2026-09-11T14:26:51',
   },
-  { kind: 'OUTAGE_OFFLINE', suburb: 'Kyneton', postcode: '3444', signalOffsetMinutes: 400 },
-  { kind: 'DEVICE_FAULT_SILENT', suburb: 'Seymour', postcode: '3660', signalOffsetMinutes: 12 },
-  { kind: 'MAINTENANCE_OFFLINE', suburb: 'Ararat', postcode: '3377', signalOffsetMinutes: 35 },
+  {
+    kind: 'OUTAGE_OFFLINE',
+    suburb: 'Kyneton',
+    postcode: '3444',
+    lastSignal: '2026-09-17T04:18:55',
+    reported: '2026-09-17T05:03:27',
+  },
+  {
+    kind: 'DEVICE_FAULT_SILENT',
+    suburb: 'Seymour',
+    postcode: '3660',
+    lastSignal: '2026-09-14T08:41:30',
+    reported: '2026-09-14T09:15:02',
+  },
+  {
+    kind: 'MAINTENANCE_OFFLINE',
+    suburb: 'Ararat',
+    postcode: '3377',
+    lastSignal: '2026-09-26T01:04:27',
+    reported: '2026-09-26T01:52:13',
+  },
   {
     kind: 'HAZARD_SILENT',
     hazard: 'flood',
     suburb: 'Kerang',
     postcode: '3579',
-    signalOffsetMinutes: 55,
+    lastSignal: '2026-09-23T05:47:03',
+    reported: '2026-09-23T06:29:15',
   },
-  { kind: 'OUTAGE_OFFLINE', suburb: 'Maryborough', postcode: '3465', signalOffsetMinutes: 125 },
-  { kind: 'INCONCLUSIVE_SILENT', suburb: 'Morwell', postcode: '3840', signalOffsetMinutes: 28 },
+  {
+    kind: 'OUTAGE_OFFLINE',
+    suburb: 'Maryborough',
+    postcode: '3465',
+    lastSignal: '2026-09-16T20:04:13',
+    reported: '2026-09-16T22:16:49',
+  },
+  {
+    kind: 'INCONCLUSIVE_SILENT',
+    suburb: 'Morwell',
+    postcode: '3840',
+    lastSignal: '2026-09-19T22:37:19',
+    reported: '2026-09-19T23:05:46',
+  },
   {
     kind: 'HAZARD_OFFLINE',
     hazard: 'bushfire',
     suburb: 'Healesville',
     postcode: '3777',
-    signalOffsetMinutes: 85,
+    lastSignal: '2026-10-18T14:09:58',
+    reported: '2026-10-18T15:31:27',
   },
-  { kind: 'DEVICE_BATTERY_OFFLINE', suburb: 'Moe', postcode: '3825', signalOffsetMinutes: 1200 },
-  { kind: 'OUTAGE_OFFLINE', suburb: 'Warragul', postcode: '3820', signalOffsetMinutes: 20 },
-  { kind: 'MAINTENANCE_OFFLINE', suburb: 'Leongatha', postcode: '3953', signalOffsetMinutes: 160 },
-  { kind: 'DEVICE_FAULT_SILENT', suburb: 'Wonthaggi', postcode: '3995', signalOffsetMinutes: 38 },
-  { kind: 'OUTAGE_OFFLINE', suburb: 'Stawell', postcode: '3380', signalOffsetMinutes: 1980 },
+  {
+    kind: 'DEVICE_BATTERY_OFFLINE',
+    suburb: 'Moe',
+    postcode: '3825',
+    lastSignal: '2026-09-23T23:49:58',
+    reported: '2026-09-24T17:31:06',
+  },
+  {
+    kind: 'OUTAGE_OFFLINE',
+    suburb: 'Warragul',
+    postcode: '3820',
+    lastSignal: '2026-09-28T12:16:39',
+    reported: '2026-09-28T13:05:24',
+  },
+  {
+    kind: 'MAINTENANCE_OFFLINE',
+    suburb: 'Leongatha',
+    postcode: '3953',
+    lastSignal: '2026-10-14T02:49:05',
+    reported: '2026-10-14T03:20:41',
+  },
+  {
+    kind: 'DEVICE_FAULT_SILENT',
+    suburb: 'Wonthaggi',
+    postcode: '3995',
+    lastSignal: '2026-09-29T19:22:47',
+    reported: '2026-09-29T19:58:31',
+  },
+  {
+    kind: 'OUTAGE_OFFLINE',
+    suburb: 'Stawell',
+    postcode: '3380',
+    lastSignal: '2026-10-01T10:44:02',
+    reported: '2026-10-01T13:29:40',
+  },
   {
     kind: 'INCONCLUSIVE_SILENT',
     suburb: 'Bacchus Marsh',
     postcode: '3340',
-    signalOffsetMinutes: 50,
+    lastSignal: '2026-10-03T11:51:24',
+    reported: '2026-10-03T12:43:07',
   },
   {
     kind: 'HAZARD_OFFLINE',
     hazard: 'bushfire',
     suburb: 'Orbost',
     postcode: '3888',
-    signalOffsetMinutes: 3600,
+    lastSignal: '2026-10-16T13:41:09',
+    reported: '2026-10-16T17:56:44',
   },
-  { kind: 'MAINTENANCE_OFFLINE', suburb: 'Daylesford', postcode: '3460', signalOffsetMinutes: 55 },
-  { kind: 'OUTAGE_OFFLINE', suburb: 'Torquay', postcode: '3228', signalOffsetMinutes: 110 },
+  {
+    kind: 'MAINTENANCE_OFFLINE',
+    suburb: 'Daylesford',
+    postcode: '3460',
+    lastSignal: '2026-10-04T01:47:10',
+    reported: '2026-10-04T03:09:22',
+  },
+  {
+    kind: 'OUTAGE_OFFLINE',
+    suburb: 'Torquay',
+    postcode: '3228',
+    lastSignal: '2026-10-10T14:48:11',
+    reported: '2026-10-10T15:16:39',
+  },
   {
     kind: 'DEVICE_BATTERY_OFFLINE',
     suburb: 'Mansfield',
     postcode: '3722',
-    signalOffsetMinutes: 4320,
+    lastSignal: '2026-10-10T16:05:33',
+    reported: '2026-10-11T11:19:47',
   },
   {
     kind: 'HAZARD_SILENT',
     hazard: 'storm',
     suburb: 'Lorne',
     postcode: '3232',
-    signalOffsetMinutes: 26,
+    lastSignal: '2026-10-02T18:26:33',
+    reported: '2026-10-02T18:47:10',
   },
-  { kind: 'OUTAGE_OFFLINE', suburb: 'Frankston', postcode: '3199', signalOffsetMinutes: 10 },
-  { kind: 'DEVICE_FAULT_SILENT', suburb: 'Dandenong', postcode: '3175', signalOffsetMinutes: 58 },
-  { kind: 'MAINTENANCE_OFFLINE', suburb: 'Werribee', postcode: '3030', signalOffsetMinutes: 140 },
-  { kind: 'OUTAGE_OFFLINE', suburb: 'Sunbury', postcode: '3429', signalOffsetMinutes: 315 },
+  {
+    kind: 'OUTAGE_OFFLINE',
+    suburb: 'Frankston',
+    postcode: '3199',
+    lastSignal: '2026-10-05T07:08:19',
+    reported: '2026-10-05T07:31:55',
+  },
+  {
+    kind: 'DEVICE_FAULT_SILENT',
+    suburb: 'Dandenong',
+    postcode: '3175',
+    lastSignal: '2026-10-08T11:03:28',
+    reported: '2026-10-08T11:30:16',
+  },
+  {
+    kind: 'MAINTENANCE_OFFLINE',
+    suburb: 'Werribee',
+    postcode: '3030',
+    lastSignal: '2026-09-15T03:06:31',
+    reported: '2026-09-15T03:21:58',
+  },
+  {
+    kind: 'OUTAGE_OFFLINE',
+    suburb: 'Sunbury',
+    postcode: '3429',
+    lastSignal: '2026-10-14T18:57:36',
+    reported: '2026-10-14T20:24:12',
+  },
   {
     kind: 'HAZARD_OFFLINE',
     hazard: 'flood',
     suburb: 'Cobram',
     postcode: '3644',
-    signalOffsetMinutes: 2880,
+    lastSignal: '2026-09-25T02:11:37',
+    reported: '2026-09-25T05:58:22',
   },
-  { kind: 'INCONCLUSIVE_SILENT', suburb: 'Melton', postcode: '3337', signalOffsetMinutes: 44 },
+  {
+    kind: 'INCONCLUSIVE_SILENT',
+    suburb: 'Melton',
+    postcode: '3337',
+    lastSignal: '2026-10-15T08:14:52',
+    reported: '2026-10-15T08:45:30',
+  },
   {
     kind: 'DEVICE_BATTERY_OFFLINE',
     suburb: 'Pakenham',
     postcode: '3810',
-    signalOffsetMinutes: 1800,
+    lastSignal: '2026-10-16T20:38:21',
+    reported: '2026-10-17T09:02:56',
   },
-  { kind: 'MAINTENANCE_OFFLINE', suburb: 'Cranbourne', postcode: '3977', signalOffsetMinutes: 90 },
-  { kind: 'DEVICE_FAULT_SILENT', suburb: 'Mornington', postcode: '3931', signalOffsetMinutes: 15 },
-  { kind: 'OUTAGE_OFFLINE', suburb: 'Ocean Grove', postcode: '3226', signalOffsetMinutes: 240 },
-  { kind: 'MAINTENANCE_OFFLINE', suburb: 'Camperdown', postcode: '3260', signalOffsetMinutes: 25 },
+  {
+    kind: 'MAINTENANCE_OFFLINE',
+    suburb: 'Cranbourne',
+    postcode: '3977',
+    lastSignal: '2026-10-12T00:27:44',
+    reported: '2026-10-12T00:51:09',
+  },
+  {
+    kind: 'DEVICE_FAULT_SILENT',
+    suburb: 'Mornington',
+    postcode: '3931',
+    lastSignal: '2026-10-19T09:11:40',
+    reported: '2026-10-19T09:39:05',
+  },
+  {
+    kind: 'OUTAGE_OFFLINE',
+    suburb: 'Ocean Grove',
+    postcode: '3226',
+    lastSignal: '2026-10-20T19:44:51',
+    reported: '2026-10-20T20:12:07',
+  },
+  {
+    kind: 'MAINTENANCE_OFFLINE',
+    suburb: 'Camperdown',
+    postcode: '3260',
+    lastSignal: '2026-09-10T00:14:55',
+    reported: '2026-09-10T00:39:20',
+  },
 ]

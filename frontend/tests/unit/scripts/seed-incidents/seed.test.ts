@@ -294,8 +294,9 @@ describe('runSeed — identity checks on existing documents', () => {
     ['a different deviceId', { deviceId: 'SC-0000' }, ['deviceId']],
     ['isSimulated false', { isSimulated: false }, ['isSimulated']],
     ['isSimulated stored as a string', { isSimulated: 'true' }, ['isSimulated']],
-    ['a newer _schemaVersion', { _schemaVersion: 2 }, ['_schemaVersion']],
-    ['_schemaVersion stored as a string', { _schemaVersion: '1' }, ['_schemaVersion']],
+    ['a newer _schemaVersion', { _schemaVersion: 3 }, ['_schemaVersion']],
+    ['an older (version 1) document', { _schemaVersion: 1 }, ['_schemaVersion']],
+    ['_schemaVersion stored as a string', { _schemaVersion: '2' }, ['_schemaVersion']],
     ['a null ownerUid', { ownerUid: null }, ['ownerUid']],
     ['a numeric incidentCode', { incidentCode: 7 }, ['incidentCode']],
     [
@@ -367,7 +368,7 @@ describe('runSeed — identity checks on existing documents', () => {
 
   it('applies the same identity checks after an ALREADY_EXISTS race', async () => {
     const store = new FakeStore()
-    const raced = { ...records[4]?.data, _schemaVersion: 2, likelyCause: 'other text' }
+    const raced = { ...records[4]?.data, _schemaVersion: 3, likelyCause: 'other text' }
     store.raceOnCreate.set(idOf(5), raced)
 
     const report = await runSeed(store, records, { write: true })
@@ -440,7 +441,7 @@ describe('adminIncidentStore — Admin SDK adapter', () => {
           incidentCode: 'INC-001',
           deviceId: records[0]?.data.deviceId,
           isSimulated: true,
-          _schemaVersion: 1,
+          _schemaVersion: 2,
         },
       ],
     ])

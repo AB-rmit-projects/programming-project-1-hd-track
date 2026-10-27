@@ -18,11 +18,22 @@ The SafeCall dashboard reads 50 fictional incidents per demo operator from the `
 | Incident codes | `INC-001` … `INC-050` |
 | Device IDs | 50 unique fictional pendant IDs, `SC-####` (the same 50 for every demo owner) |
 | Locations | 50 real Victorian suburbs with their correct postcodes, `state: 'VIC'`. The incidents themselves are fictional. |
-| `lastSignalAt` | seed time minus a fixed per-incident offset, 10 minutes to 72 hours overall. For `OFFLINE` it is when the heartbeat stopped, and the long gaps (up to 72 hours) are all `OFFLINE`. For `SILENT` it is the most recent heartbeat, always 60 minutes old or less (see below). |
-| `createdAt` | seed time |
-| `isSimulated` / `_schemaVersion` | always `true` / `1` |
+| `reportedAt` | **simulated**, fixed per scenario: when the fictional monitoring platform raised the incident, 1 Sep – 20 Oct 2026 Melbourne time (see Timeline) |
+| `lastSignalAt` | **simulated**, fixed per scenario: the last heartbeat before `reportedAt`. For `OFFLINE` it is when the heartbeat stopped; for `SILENT` it is the most recent heartbeat, always 60 minutes or less before the report (see below) |
+| `createdAt` | **real**: the seed time (when the documents are written) |
+| `isSimulated` / `_schemaVersion` | always `true` / `2` |
 
-All 15 `Incident` fields are always present (`frontend/src/types/firestore.ts`). Because the builder is type-checked against that interface, schema drift fails `pnpm run typecheck`. The same owner UID and clock always produce the same records.
+All 16 `Incident` fields are always present (`frontend/src/types/firestore.ts`). Because the builder is type-checked against that interface, schema drift fails `pnpm run typecheck`. The simulated times never depend on the clock; only `createdAt` does. The builder refuses a seed time earlier than the latest report time (`LATEST_REPORTED_AT`, 20 Oct 2026 8:12:07 pm AEDT), so no incident can be dated in the future.
+
+### Timeline (schema v2, Phase 6)
+
+The incidents are **historical, fictional scenarios**, not live alerts. Each scenario in `scenarios.ts` carries two Melbourne wall-clock times, `lastSignal` and `reported`, converted to instants by `melbourneLocalToUtc` (`frontend/src/lib/melbourneTime.ts`). That uses the runtime's time-zone database and refuses the hour skipped when daylight saving starts (and the repeated hour when it ends).
+
+- **25 incidents in September and 25 in October** (1 Sep – 20 Oct 2026), reported at all hours: 12 between midnight and 6 am, 15 in the morning, 15 in the afternoon, 8 in the evening, with 50 different clock times and non-zero seconds. Nothing repeats the old 4:33 pm seed time.
+- **Gaps fit the evidence:** maintenance losses fall in overnight windows (last signal before 4 am, reported within 90 minutes); battery losses build up over 6–20 hours (reported the next morning or day); SILENT heartbeats are 10–60 minutes before the report; outages are reported between 15 minutes and a few hours after the loss. No fixed offset or round-number pattern remains.
+- **Fictional advisory periods** group the hazard incidents: floods 21–25 Sep (Echuca, Kerang, Cobram), storms 2–6 Oct (Lorne, Lakes Entrance) and early-season bushfires 13–18 Oct (Bright, Orbost, Healesville). They give the date-range filter meaningful groups.
+- **Daylight saving:** INC-036 (Daylesford) loses its signal at 1:47 am AEST and is reported at 3:09 am AEDT on Sun 4 Oct, only 22 minutes later.
+- **Incident codes are dataset references, not chronological.** The scenario text, IDs, devices and locations are unchanged from version 1, so the live migration only has to change the timeline fields.
 
 ### Cause categories (15 / 12 / 10 / 8 / 5)
 
@@ -43,7 +54,7 @@ A category labels a **simulated assessment or evidence association, never a conf
 | `OFFLINE` (36) | No network heartbeat from the pendant since its last recorded signal | outage, maintenance, battery, most hazard cases |
 | `SILENT` (14) | The pendant still sends a heartbeat (possibly intermittent), but an expected check-in or self-test was missed | device fault, some hazard cases, all insufficient-evidence cases |
 
-**SILENT heartbeat age:** every `SILENT` incident's `lastSignalAt` (its most recent heartbeat) is at most **60 minutes** before seed time (`SILENT_MAX_HEARTBEAT_AGE_MINUTES` in `scenarios.ts`). This threshold is a **demonstration assumption for this fictional dataset, not a verified SafeCall operational threshold.** Ages are fixed relative to seed time, so they grow older as time passes after seeding.
+**SILENT heartbeat age:** every `SILENT` incident's `lastSignalAt` (its most recent heartbeat) is at most **60 minutes** before its `reportedAt` (`SILENT_MAX_HEARTBEAT_AGE_MINUTES` in `scenarios.ts`). This threshold is a **demonstration assumption for this fictional dataset, not a verified SafeCall operational threshold.** Because both times are historical, the gap never changes after seeding.
 
 Status, cause, evidence and recommended action all come from one *scenario kind* (category + status), so they cannot contradict each other:
 
@@ -152,13 +163,31 @@ The live demo data was created without changing this script:
 
 This records a dated verification milestone, not the current contents of the database: the counts change once operators record decisions (Phase 5). Operators without incidents still see the dashboard's zero-incident empty state. Re-seeding or cleaning up the live data would need a new, separately approved procedure.
 
+Those 50 live documents are **version 1** (seed time 2026-10-23T05:33:44Z). The app reads them safely until they are migrated (see FIRESTORE-SCHEMA.md → Schema versions).
+
+### Timeline migration, version 1 → 2 (Phase 6; not yet run live)
+
+`frontend/scripts/migrate-incident-timeline/` converts the existing documents in place. It never recreates, deletes or re-owns anything, and never touches action logs.
+
+- `legacy.ts` rebuilds the exact version 1 documents from the owner UID and the original seed time (the 50 version 1 signal offsets are pinned). Offline, this reconstruction reproduces the SHA-256 payload fingerprint recorded for the live write on 23 October (`7d4232…`), so "untouched version 1" is defined byte for byte.
+- `plan.ts` (pure) classifies each of the 50 allowlisted IDs as untouched v1, already v2, missing or conflicting, using strict, type-tagged comparison (timestamps to the nanosecond, no coercion). It **stops** on any missing or altered document, on any incident the owner has outside the allowlist, or on a read document that is not allowlisted. Otherwise it plans one update per v1 document that sets exactly `reportedAt`, `lastSignalAt` and `_schemaVersion: 2`, preconditioned on that document's last update time. `createdAt` and every other field are left as they are. The plan's SHA-256 digest also covers the owner's action-log IDs.
+- `migrate.ts` runs the steps: `dryRun` (read-only, returns the plan and a canonical backup snapshot of the 50 documents with their update times) → `write` (re-plans from fresh reads and refuses unless the digest equals the approved dry run's; then commits **one atomic batch**, so a concurrent change fails the whole batch and writes nothing; then re-reads and verifies all 50 are exactly v2, the owner still has exactly those incidents and the action-log IDs are unchanged) → `rollback` (the inverse, for documents exactly in their v2 form: restore the v1 `lastSignalAt`, remove `reportedAt`, set version 1). A second run is a no-op (`NOTHING_TO_DO`).
+- The Admin adapter uses only `getAll`, two owner-scoped ID-only queries (`select()`) and one batch of `update()` calls. Nothing in the repository chooses a project or loads a credential.
+
+**Rehearsed on the emulator only** (`frontend/tests/rules/incidentTimelineMigration.rules.test.ts`): dry run, write, verification, idempotency, a write refused after a concurrent change, the batch precondition blocking a raced write atomically, a tampered document, an extra incident, rollback to the exact v1 documents, reading the migrated documents through the rules, and a decision still saving afterwards. Decoy incidents and action logs belonging to another operator are proved unchanged.
+
+**A live run needs separate approvals:** a temporary credential limited to Firestore document get/list/update (no create or delete), revoked afterwards; a live dry run; review of the plan digest and backup; then the write.
+
 ---
 
 ## Tests
 
 | Suite | Command | Covers |
 |---|---|---|
-| `frontend/tests/unit/scripts/seed-incidents/dataset.test.ts` | `pnpm run test:component` | 50 records, IDs, distribution, 15-field schema, status/evidence consistency, wording guards |
+| `frontend/tests/unit/scripts/seed-incidents/dataset.test.ts` | `pnpm run test:component` | 50 records, IDs, distribution, 16-field schema, timeline invariants (25/25 months, spread of times, SILENT and maintenance gaps, advisory periods, DST, no future dates), status/evidence consistency, wording guards |
 | `frontend/tests/unit/scripts/seed-incidents/options.test.ts` | `pnpm run test:component` | Every argument and safety refusal, the emulator identity probe, refusal ordering in the CLI |
 | `frontend/tests/unit/scripts/seed-incidents/seed.test.ts` | `pnpm run test:component` | Preflight, create-only writes, conflicts, ALREADY_EXISTS paths, failures, exit codes (in-memory fake store) |
 | `frontend/tests/rules/seed-incidents.rules.test.ts` | `pnpm run test:rules` | Real emulator: 50 created with real Timestamps, repeat and partial runs, conflicts, a real ALREADY_EXISTS, dry runs, action logs untouched, failure isolation, owner-only reads through the rules, action-log creation, and the real CLI process end to end |
+| `frontend/tests/unit/lib/melbourneTime.test.ts` | `pnpm run test:component` | Melbourne local ↔ UTC conversion, every minute of the daylight-saving start day, ambiguous and impossible times, Melbourne calendar dates, display format |
+| `frontend/tests/unit/scripts/migrate-incident-timeline/plan.test.ts` | `pnpm run test:component` | v1 reconstruction, strict comparison, PROCEED / NOTHING_TO_DO / STOP cases, digest sensitivity, rollback and verification |
+| `frontend/tests/rules/incidentTimelineMigration.rules.test.ts` | `pnpm run test:rules` | The migration rehearsal on the real emulator (see Timeline migration) |

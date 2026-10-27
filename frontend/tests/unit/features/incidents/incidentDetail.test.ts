@@ -15,6 +15,7 @@ const EXPECTED = { ownerUid: OWNER }
 function asStored({ data }: SeedRecord): Record<string, unknown> {
   return {
     ...data,
+    reportedAt: Timestamp.fromDate(data.reportedAt),
     lastSignalAt: Timestamp.fromDate(data.lastSignalAt),
     createdAt: Timestamp.fromDate(data.createdAt),
   }
@@ -53,7 +54,9 @@ describe('parseIncidentDetail — complete records', () => {
         postcode: FIRST.data.postcode,
         status: FIRST.data.status,
         causeCategory: FIRST.data.causeCategory,
+        reportedAt: FIRST.data.reportedAt,
         lastSignalAt: FIRST.data.lastSignalAt,
+        legacyTimeline: false,
         state: 'VIC',
         likelyCause: FIRST.data.likelyCause,
         evidenceSummary: FIRST.data.evidenceSummary,
@@ -183,7 +186,7 @@ describe('parseIncidentDetail — missing or unexpected fields become null and a
     expect(detail.dataIssues).toEqual(['createdAt'])
   })
 
-  it.each([[2], ['1'], [undefined]])(
+  it.each([[3], ['2'], ['1'], [undefined]])(
     'reports _schemaVersion %s but still shows the checked values',
     (version) => {
       const data =
@@ -195,6 +198,16 @@ describe('parseIncidentDetail — missing or unexpected fields become null and a
       expect(detail.likelyCause).toBe(FIRST.data.likelyCause)
     }
   )
+
+  it('accepts a version 1 (legacy) record without a version issue, and with no report time', () => {
+    const data = storedWith({ _schemaVersion: 1 })
+    delete data.reportedAt
+    const detail = parseDetail(data)
+    expect(detail.dataIssues).toEqual([])
+    expect(detail.legacyTimeline).toBe(true)
+    expect(detail.reportedAt).toBeNull()
+    expect(detail.createdAt).toEqual(FIRST.data.createdAt)
+  })
 
   it('keeps the queue-field issues first, then the detail issues, without duplicates', () => {
     const detail = parseDetail(
@@ -216,7 +229,9 @@ describe('parseIncidentDetail — missing or unexpected fields become null and a
       postcode: null,
       status: null,
       causeCategory: null,
+      reportedAt: null,
       lastSignalAt: null,
+      legacyTimeline: true,
       state: null,
       likelyCause: null,
       evidenceSummary: null,

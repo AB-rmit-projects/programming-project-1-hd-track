@@ -43,9 +43,11 @@ export function parseIncidentDetail(
   const createdAt = toStoredDate(record.createdAt)
   if (createdAt === null) dataIssues.push('createdAt')
 
-  // A different version may mean different field meanings; the values above
-  // were each checked, so they are still shown, but the mismatch is reported.
-  if (record._schemaVersion !== 1) dataIssues.push('_schemaVersion')
+  // Version 2 is current; version 1 (legacy, before the Phase 6 timeline) is
+  // still readable. Anything else may mean different field meanings: the
+  // values above were each checked, so they are still shown, but the mismatch
+  // is reported.
+  if (record._schemaVersion !== 1 && record._schemaVersion !== 2) dataIssues.push('_schemaVersion')
 
   return {
     ok: true,

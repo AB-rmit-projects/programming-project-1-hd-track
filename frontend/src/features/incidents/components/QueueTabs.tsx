@@ -29,11 +29,7 @@ export function QueueTabs({ activeTab, counts, panelId, onChange }: QueueTabsPro
 
   function select(tab: QueueTab) {
     onChange(tab)
-    const element = tabRefs.current[tab]
-    element?.focus()
-    // On a narrow phone the row scrolls sideways; focus() alone does not bring a
-    // partly hidden tab fully into view. (Optional call: jsdom lacks scrollIntoView.)
-    element?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+    tabRefs.current[tab]?.focus()
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
@@ -50,15 +46,15 @@ export function QueueTabs({ activeTab, counts, panelId, onChange }: QueueTabsPro
     select(QUEUE_TABS[target]!)
   }
 
-  // The tabs stay on one line; on narrow phones the row scrolls sideways
-  // instead of wrapping. Below sm the focus outline is drawn inside each tab,
-  // because the scrolling container would clip an outline drawn outside it.
+  // Below sm the three tabs share the full width equally and their labels may
+  // wrap, so nothing is cut off or scrolls sideways on a 320px phone; from sm
+  // up they sit on one line. The focus outline is drawn inside each tab.
   return (
-    <div className="overflow-x-auto sm:overflow-visible">
+    <div>
       <div
         role="tablist"
         aria-label="Filter incidents by review status"
-        className="flex w-max min-w-full gap-0.5 border-b border-zinc-200 sm:gap-1 dark:border-zinc-800"
+        className="grid grid-cols-3 border-b border-zinc-200 sm:flex sm:gap-1 dark:border-zinc-800"
       >
         {QUEUE_TABS.map((tab) => {
           const selected = tab === activeTab
@@ -77,7 +73,7 @@ export function QueueTabs({ activeTab, counts, panelId, onChange }: QueueTabsPro
               onClick={() => select(tab)}
               onKeyDown={handleKeyDown}
               className={cn(
-                '-mb-px inline-flex shrink-0 items-center gap-1 border-b-2 px-2 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-zinc-900 sm:gap-2 sm:px-3 sm:focus-visible:outline-offset-2 dark:focus-visible:outline-zinc-100',
+                '-mb-px inline-flex min-w-0 flex-col items-center justify-center gap-1 border-b-2 px-1 py-2 text-center text-sm leading-tight font-medium transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-zinc-900 sm:flex-row sm:gap-2 sm:px-3 sm:whitespace-nowrap dark:focus-visible:outline-zinc-100',
                 selected
                   ? 'border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100'
                   : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'

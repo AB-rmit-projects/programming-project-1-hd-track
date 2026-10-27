@@ -5,6 +5,12 @@ import Link from 'next/link'
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner'
 import { useAuth } from '@/hooks/useAuth'
 import { useIncidentDashboard } from '@/features/incidents/hooks/useIncidentDashboard'
+import {
+  DEFAULT_FILTERS,
+  DEFAULT_SORT,
+  type QueueFilters,
+  type QueueSort,
+} from '@/features/incidents/queueView'
 import type { QueueTab } from '@/features/incidents/types'
 import {
   IncidentDashboardView,
@@ -68,9 +74,37 @@ export function IncidentDashboard() {
   return <OperatorDashboard key={user.uid} uid={user.uid} />
 }
 
+interface QueueView {
+  tab: QueueTab
+  filters: QueueFilters
+  sort: QueueSort
+}
+
+const DEFAULT_VIEW: QueueView = { tab: 'ALL', filters: DEFAULT_FILTERS, sort: DEFAULT_SORT }
+
+/**
+ * The last queue view per operator, kept in memory for this browser tab only,
+ * so returning from an incident restores the same tab, filters and sort. It
+ * holds display preferences only — never incident data — and a full reload
+ * starts afresh.
+ */
+const rememberedViews = new Map<string, QueueView>()
+
+/** Test hook: forget every remembered queue view. */
+export function resetRememberedQueueViews(): void {
+  rememberedViews.clear()
+}
+
 function OperatorDashboard({ uid }: { uid: string }) {
   const dashboard = useIncidentDashboard(uid)
-  const [activeTab, setActiveTab] = useState<QueueTab>('ALL')
+  const [view, setViewState] = useState<QueueView>(() => rememberedViews.get(uid) ?? DEFAULT_VIEW)
+
+  const setView = (patch: Partial<QueueView>) =>
+    setViewState((current) => {
+      const next = { ...current, ...patch }
+      rememberedViews.set(uid, next)
+      return next
+    })
 
   // Second check after the hook's own: only data the hook reports as this UID's is shown.
   const state = dashboard.ownerUid === uid ? dashboard : LOADING
@@ -78,8 +112,13 @@ function OperatorDashboard({ uid }: { uid: string }) {
   return (
     <IncidentDashboardView
       state={state}
-      activeTab={activeTab}
-      onTabChange={setActiveTab}
+      activeTab={view.tab}
+      onTabChange={(tab) => setView({ tab })}
+      filters={view.filters}
+      onFiltersChange={(filters) => setView({ filters })}
+      sort={view.sort}
+      onSortChange={(sort) => setView({ sort })}
+      onClearFilters={() => setView({ filters: DEFAULT_FILTERS })}
       onRetry={dashboard.retry}
     />
   )

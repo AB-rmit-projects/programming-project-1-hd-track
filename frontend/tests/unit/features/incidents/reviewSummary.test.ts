@@ -22,6 +22,7 @@ const NOW = new Date('2026-10-21T00:00:00.000Z')
 const SEED_ROWS: IncidentRow[] = buildSeedIncidents(OWNER, NOW).map(({ id, data }) => {
   const parsed = parseIncident(id, {
     ...data,
+    reportedAt: Timestamp.fromDate(data.reportedAt),
     lastSignalAt: Timestamp.fromDate(data.lastSignalAt),
     createdAt: Timestamp.fromDate(data.createdAt),
   })
@@ -126,7 +127,9 @@ function row(overrides: Partial<IncidentRow> & { id: string }): IncidentRow {
     postcode: '3350',
     status: 'OFFLINE',
     causeCategory: 'UNPLANNED_OUTAGE',
+    reportedAt: new Date('2026-10-20T00:30:00Z'),
     lastSignalAt: new Date('2026-10-20T00:00:00Z'),
+    legacyTimeline: false,
     dataIssues: [],
     ...overrides,
   }

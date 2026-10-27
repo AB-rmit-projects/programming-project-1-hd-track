@@ -17,7 +17,7 @@ import {
 } from '@/features/incidents/labels'
 import type { Incident } from '@/types/firestore'
 import { useAuth } from '@/hooks/useAuth'
-import { formatDatetime } from '@/lib/utils'
+import { formatMelbourneDateTime } from '@/lib/melbourneTime'
 import type { AuthContextValue } from '@/types/auth'
 // The seed script lives outside src/, so the @/ alias cannot reach it.
 import { buildSeedIncidents } from '../../../../scripts/seed-incidents/dataset'
@@ -103,6 +103,7 @@ function storedIncident(owner: string, index = 0) {
     seed: record.data,
     data: {
       ...record.data,
+      reportedAt: Timestamp.fromDate(record.data.reportedAt),
       lastSignalAt: Timestamp.fromDate(record.data.lastSignalAt),
       createdAt: Timestamp.fromDate(record.data.createdAt),
     } as Record<string, unknown>,
@@ -309,14 +310,30 @@ describe('IncidentDetail — incident details', () => {
     )
     expect(fact('Incident code')).toHaveTextContent(seed.incidentCode)
     expect(fact('Device ID')).toHaveTextContent(seed.deviceId)
-    expect(fact('Connectivity')).toHaveTextContent(
+    expect(fact('Pendant connectivity')).toHaveTextContent(
       INCIDENT_STATUS_LABELS[seed.status as Incident['status']]
     )
     expect(fact('Location')).toHaveTextContent(`${seed.suburb}, VIC ${seed.postcode}`)
-    const lastSignal = within(fact('Last signal')).getByText(formatDatetime(seed.lastSignalAt))
+    const reported = within(fact('Reported (simulated)')).getByText(
+      formatMelbourneDateTime(seed.reportedAt)
+    )
+    expect(reported.tagName).toBe('TIME')
+    expect(reported).toHaveAttribute('dateTime', seed.reportedAt.toISOString())
+    const lastSignal = within(fact('Last signal (simulated)')).getByText(
+      formatMelbourneDateTime(seed.lastSignalAt)
+    )
     expect(lastSignal.tagName).toBe('TIME')
     expect(lastSignal).toHaveAttribute('dateTime', seed.lastSignalAt.toISOString())
-    expect(fact('Incident created')).toHaveTextContent(formatDatetime(seed.createdAt))
+    // The real record-creation time is secondary dataset metadata, not an incident fact.
+    const record = screen.getByRole('region', { name: 'Dataset record' })
+    expect(within(record).getByText(formatMelbourneDateTime(seed.createdAt))).toBeInTheDocument()
+    expect(within(record).getByText('Version 2')).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('region', { name: 'Incident facts' })).queryByText(
+        formatMelbourneDateTime(seed.createdAt)
+      )
+    ).toBeNull()
+    expect(screen.queryByText('Incident created')).toBeNull()
     expect(fact('Cause category')).toHaveTextContent(CAUSE_CATEGORY_LABELS[seed.causeCategory])
     expect(fact('Cause category')).toHaveTextContent('not a confirmed cause')
     expect(fact('Likely cause (interpretation)')).toHaveTextContent(seed.likelyCause)
@@ -343,7 +360,7 @@ describe('IncidentDetail — incident details', () => {
     ).toBeInTheDocument()
     expect(fact('Location')).toHaveTextContent(`—Not recorded, VIC ${A1.seed.postcode}`)
     expect(fact('Evidence (simulated)')).toHaveTextContent('Not recorded')
-    expect(fact('Last signal')).toHaveTextContent('Not recorded')
+    expect(fact('Last signal (simulated)')).toHaveTextContent('Not recorded')
     expect(fact('Cause category')).toHaveTextContent('Unrecognised category')
     expect(screen.queryByText(A1.seed.suburb)).not.toBeInTheDocument()
   })
@@ -619,7 +636,11 @@ describe('IncidentDetail — saving a decision', () => {
     pushHistory([pending(saved)])
     expect(screen.getByText('No decisions recorded yet.')).toBeInTheDocument()
     pushHistory([saved])
-    expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(1)
+    expect(
+      within(screen.getByRole('list', { name: 'Saved decisions, newest first' })).getAllByRole(
+        'listitem'
+      )
+    ).toHaveLength(1)
   })
 
   it('a pending history snapshot never clears the form or counts as saved', async () => {
@@ -766,7 +787,9 @@ describe('IncidentDetail — decision history', () => {
     const late = log('REVIEWED', 3, { note: 'Newest decision, reviewed.' })
     confirmBoth(A1, [old, late, mid])
 
-    const items = within(screen.getByRole('list')).getAllByRole('listitem')
+    const items = within(
+      screen.getByRole('list', { name: 'Saved decisions, newest first' })
+    ).getAllByRole('listitem')
     expect(items.map((item) => within(item).getByText(/decision/).textContent)).toEqual([
       'Newest decision, reviewed.',
       'Middle decision, escalation noted.\nSecond line.',
@@ -783,7 +806,11 @@ describe('IncidentDetail — decision history', () => {
   it('repeated REVIEWED decisions are all listed', () => {
     showDetail()
     confirmBoth(A1, [log('REVIEWED', 1), log('REVIEWED', 2)])
-    expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(2)
+    expect(
+      within(screen.getByRole('list', { name: 'Saved decisions, newest first' })).getAllByRole(
+        'listitem'
+      )
+    ).toHaveLength(2)
   })
 
   it('pending writes are not listed; malformed and foreign records are flagged, not shown as normal', () => {
@@ -799,7 +826,9 @@ describe('IncidentDetail — decision history', () => {
     expect(screen.getByText(/1 decision is waiting for the server/)).toBeInTheDocument()
     expect(screen.getByText(/1 entry has missing or unexpected fields/)).toBeInTheDocument()
     expect(screen.getByText(/1 record was not shown/)).toBeInTheDocument()
-    const item = within(screen.getByRole('list')).getByRole('listitem')
+    const item = within(
+      screen.getByRole('list', { name: 'Saved decisions, newest first' })
+    ).getByRole('listitem')
     expect(item).toHaveTextContent('Unrecognised decision')
     expect(item).toHaveTextContent('Time not recorded')
     expect(headerBadges().getByText('Awaiting review')).toBeInTheDocument() // the pending REVIEWED doesn't count
@@ -811,7 +840,11 @@ describe('IncidentDetail — decision history', () => {
     confirmBoth(A1, [entry])
     pushHistory([entry], true)
     expect(screen.getByText('Showing cached history; it may be out of date.')).toBeInTheDocument()
-    expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(1)
+    expect(
+      within(screen.getByRole('list', { name: 'Saved decisions, newest first' })).getAllByRole(
+        'listitem'
+      )
+    ).toHaveLength(1)
   })
 
   it('history not confirmed in time is reported as offline, the incident still shown', () => {
@@ -980,5 +1013,60 @@ describe('IncidentDetail — accessibility', () => {
     pushIncident(A1, true)
     const explanation = screen.getByText(DECISION_UNAVAILABLE_TEXT)
     expect(saveButton().getAttribute('aria-describedby')).toBe(explanation.id)
+  })
+})
+
+// ── Phase 6: timeline presentation and navigation ────────────────────────────
+
+describe('IncidentDetail — Phase 6 timeline and navigation', () => {
+  it('shows a breadcrumb to the queue, with the incident as the current page', () => {
+    showDetail()
+    confirmBoth()
+    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' })
+    expect(within(crumbs).getByRole('link', { name: 'Incident queue' })).toHaveAttribute(
+      'href',
+      '/dashboard'
+    )
+    expect(within(crumbs).getByText(A1.seed.incidentCode)).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('shows Melbourne time with the right zone on each side of the daylight-saving change', () => {
+    showDetail(storedIncident(ALICE, 35).id)
+    confirmBoth(storedIncident(ALICE, 35)) // INC-036, Daylesford
+    expect(fact('Last signal (simulated)')).toHaveTextContent('Sun, 4 Oct 2026, 1:47 am AEST')
+    expect(fact('Reported (simulated)')).toHaveTextContent('Sun, 4 Oct 2026, 3:09 am AEDT')
+  })
+
+  it('a version 1 (legacy) record loads with no data warning and no invented report time', () => {
+    showDetail()
+    const { reportedAt: _reported, ...v1 } = A1.data
+    confirmBoth({ ...A1, data: { ...v1, _schemaVersion: 1 } })
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: A1.seed.incidentCode })
+    ).toBeInTheDocument()
+    expect(fact('Reported (simulated)')).toHaveTextContent(
+      'Not recorded in this earlier-format record'
+    )
+    expect(fact('Reported (simulated)').querySelector('time')).toBeNull()
+    expect(fact('Last signal (simulated)').querySelector('time')).not.toBeNull()
+    expect(screen.queryByText('This incident record has missing or unexpected fields.')).toBeNull()
+    expect(
+      within(screen.getByRole('region', { name: 'Dataset record' })).getByText(
+        'Version 1 (earlier format)'
+      )
+    ).toBeInTheDocument()
+    // The decision workflow is unchanged for a legacy record.
+    expect(radio('REVIEWED')).toBeEnabled()
+  })
+
+  it('states that the incident is a historical, fictional scenario', () => {
+    showDetail()
+    confirmBoth()
+    expect(
+      within(screen.getByRole('region', { name: 'Incident facts' })).getByText(
+        /historical, fictional scenario — not a live alert/
+      )
+    ).toBeInTheDocument()
   })
 })

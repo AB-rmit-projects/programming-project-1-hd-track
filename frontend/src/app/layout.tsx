@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
+import { APP_DESCRIPTION, APP_NAME } from '@/lib/brand'
 import { Providers } from '@/providers'
 import './globals.css'
 
@@ -15,10 +16,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    template: `%s | ${process.env.NEXT_PUBLIC_APP_NAME ?? 'App'}`,
-    default: process.env.NEXT_PUBLIC_APP_NAME ?? 'App',
+    template: `%s | ${APP_NAME}`,
+    default: APP_NAME,
   },
-  description: 'Built on garage-boilerplate',
+  description: APP_DESCRIPTION,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
