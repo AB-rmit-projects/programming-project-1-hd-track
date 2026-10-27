@@ -163,7 +163,7 @@ export function QueueControls({
         </p>
       )}
 
-      <div className="mt-3 flex flex-col gap-2 border-t border-zinc-100 pt-3 text-xs text-zinc-500 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-800">
+      <div className="mt-3 flex flex-col gap-2 border-t border-zinc-100 pt-3 text-xs text-zinc-500 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-800 dark:text-zinc-400">
         <p>
           Dates are Melbourne calendar days (inclusive) of the simulated report time.{' '}
           <span className="font-medium text-zinc-700 dark:text-zinc-300">

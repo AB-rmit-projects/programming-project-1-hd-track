@@ -48,7 +48,7 @@ const REVIEW_STYLES: Record<ReviewStatus, BadgeStyle> = {
   AWAITING_REVIEW: { icon: Clock, className: NEUTRAL },
   REVIEWED: {
     icon: CheckCircle2,
-    className: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300',
+    className: 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300',
   },
 }
 

@@ -17,7 +17,7 @@ export function Sidebar() {
       <nav aria-label="Main navigation" className="flex-1 p-3">
         <NavLinks orientation="vertical" />
       </nav>
-      <p className="border-t border-zinc-200 p-4 text-xs text-zinc-500 dark:border-zinc-800">
+      <p className="border-t border-zinc-200 p-4 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
         Demonstration app — all incidents are fictional.
       </p>
     </aside>

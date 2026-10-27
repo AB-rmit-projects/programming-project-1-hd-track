@@ -40,7 +40,7 @@ export function IncidentDashboard() {
         <IncidentQueueHeader simulated={false} />
         <div
           aria-busy="true"
-          className="flex items-center justify-center gap-3 py-16 text-sm text-zinc-500"
+          className="flex items-center justify-center gap-3 py-16 text-sm text-zinc-500 dark:text-zinc-400"
         >
           <LoadingSpinner size="md" />
           <p>Checking your session…</p>
@@ -58,7 +58,9 @@ export function IncidentDashboard() {
           className="rounded-lg border border-zinc-200 bg-white p-6 text-sm dark:border-zinc-800 dark:bg-zinc-900"
         >
           <p className="font-semibold">Your session has ended.</p>
-          <p className="mt-1 text-zinc-500">Sign in again to view your incident queue.</p>
+          <p className="mt-1 text-zinc-500 dark:text-zinc-400">
+            Sign in again to view your incident queue.
+          </p>
           <Link
             href="/auth/signin"
             className="mt-4 inline-flex items-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900"

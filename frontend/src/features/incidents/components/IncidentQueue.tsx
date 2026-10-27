@@ -88,7 +88,7 @@ export function IncidentQueue({ rows, label }: IncidentQueueProps) {
             {label}. Times are simulated and shown in Melbourne time. Select an incident to review
             it.
           </caption>
-          <thead className="border-b border-zinc-200 bg-zinc-50 text-xs font-medium tracking-wide text-zinc-500 uppercase dark:border-zinc-800 dark:bg-zinc-950">
+          <thead className="border-b border-zinc-200 bg-zinc-50 text-xs font-medium tracking-wide text-zinc-500 uppercase dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
             <tr>
               {[
                 'Incident',
@@ -122,7 +122,7 @@ export function IncidentQueue({ rows, label }: IncidentQueueProps) {
                   >
                     <Text value={row.incidentCode} />
                   </Link>
-                  <span className="block font-mono text-xs font-normal text-zinc-500">
+                  <span className="block font-mono text-xs font-normal text-zinc-500 dark:text-zinc-400">
                     <Text value={row.deviceId} />
                   </span>
                 </th>
@@ -139,7 +139,7 @@ export function IncidentQueue({ rows, label }: IncidentQueueProps) {
                   <span className="block">
                     <Reported row={row} />
                   </span>
-                  <span className="mt-0.5 block text-xs text-zinc-500">
+                  <span className="mt-0.5 block text-xs text-zinc-500 dark:text-zinc-400">
                     Last signal{' '}
                     <IncidentTime at={row.lastSignalAt} fallback={FALLBACK_LABELS.lastSignalAt} />
                   </span>
@@ -176,27 +176,27 @@ export function IncidentQueue({ rows, label }: IncidentQueueProps) {
               <ReviewStatusBadge status={row.reviewStatus} />
             </div>
             <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-sm">
-              <dt className="text-zinc-500">Pendant</dt>
+              <dt className="text-zinc-500 dark:text-zinc-400">Pendant</dt>
               <dd>
                 <IncidentStatusBadge status={row.status} />
               </dd>
-              <dt className="text-zinc-500">Location</dt>
+              <dt className="text-zinc-500 dark:text-zinc-400">Location</dt>
               <dd>
                 <Location row={row} />
               </dd>
-              <dt className="text-zinc-500">Cause</dt>
+              <dt className="text-zinc-500 dark:text-zinc-400">Cause</dt>
               <dd>
                 <Cause row={row} />
               </dd>
-              <dt className="text-zinc-500">Reported</dt>
+              <dt className="text-zinc-500 dark:text-zinc-400">Reported</dt>
               <dd>
                 <Reported row={row} />
               </dd>
-              <dt className="text-zinc-500">Last signal</dt>
+              <dt className="text-zinc-500 dark:text-zinc-400">Last signal</dt>
               <dd>
                 <IncidentTime at={row.lastSignalAt} fallback={FALLBACK_LABELS.lastSignalAt} />
               </dd>
-              <dt className="text-zinc-500">Device</dt>
+              <dt className="text-zinc-500 dark:text-zinc-400">Device</dt>
               <dd className="font-mono text-xs leading-5">
                 <Text value={row.deviceId} />
               </dd>

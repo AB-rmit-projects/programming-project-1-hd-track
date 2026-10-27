@@ -24,7 +24,9 @@ export function SummaryStats({ summary }: SummaryStatsProps) {
           key={key}
           className="flex items-baseline justify-between gap-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 shadow-sm min-[360px]:flex-col min-[360px]:items-start min-[360px]:gap-1 min-[360px]:p-3 sm:p-4 dark:border-zinc-800 dark:bg-zinc-900"
         >
-          <dt className="text-xs leading-tight font-medium text-zinc-500 sm:text-sm">{label}</dt>
+          <dt className="text-xs leading-tight font-medium text-zinc-500 sm:text-sm dark:text-zinc-400">
+            {label}
+          </dt>
           <dd className="text-xl font-bold tabular-nums min-[360px]:mt-auto min-[360px]:text-2xl sm:text-3xl">
             {summary ? (
               summary[key]

@@ -76,7 +76,7 @@ export function QueueTabs({ activeTab, counts, panelId, onChange }: QueueTabsPro
                 '-mb-px inline-flex min-w-0 flex-col items-center justify-center gap-1 border-b-2 px-1 py-2 text-center text-sm leading-tight font-medium transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-zinc-900 sm:flex-row sm:gap-2 sm:px-3 sm:whitespace-nowrap dark:focus-visible:outline-zinc-100',
                 selected
                   ? 'border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100'
-                  : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'
+                  : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100'
               )}
             >
               {QUEUE_TAB_LABELS[tab]}

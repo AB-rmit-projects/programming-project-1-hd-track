@@ -30,7 +30,6 @@ export default function SignUpPage() {
 
   if (loading) return <FullPageSpinner />
 
-
   const onSubmit = async (data: SignupInput) => {
     try {
       await signUpWithEmail(data.email, data.password, data.displayName)
@@ -48,7 +47,7 @@ export default function SignUpPage() {
     <div className="space-y-6">
       <div className="space-y-1 text-center">
         <h1 className="text-2xl font-bold tracking-tight">Create account</h1>
-        <p className="text-sm text-zinc-500">Get started for free</p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Get started for free</p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -145,7 +144,7 @@ export default function SignUpPage() {
         </button>
       </form>
 
-      <p className="text-center text-sm text-zinc-500">
+      <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
         Already have an account?{' '}
         <Link
           href="/auth/signin"
