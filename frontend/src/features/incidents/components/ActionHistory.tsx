@@ -8,7 +8,8 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner'
-import { cn, formatDatetime } from '@/lib/utils'
+import { formatMelbourneDateTime } from '@/lib/melbourneTime'
+import { cn } from '@/lib/utils'
 import type { IncidentHistoryState } from '@/features/incidents/hooks/useIncidentDetail'
 import { ACTION_TYPE_LABELS, FALLBACK_LABELS } from '@/features/incidents/labels'
 import type { ActionHistoryEntry } from '@/features/incidents/types'
@@ -56,7 +57,9 @@ function Entry({ entry }: { entry: ActionHistoryEntry }) {
         <ActionBadge actionType={entry.actionType} />
         <span className="text-xs text-zinc-500">
           {entry.createdAt ? (
-            <time dateTime={entry.createdAt.toISOString()}>{formatDatetime(entry.createdAt)}</time>
+            <time dateTime={entry.createdAt.toISOString()}>
+              {formatMelbourneDateTime(entry.createdAt)}
+            </time>
           ) : (
             FALLBACK_LABELS.createdAt
           )}
@@ -120,7 +123,10 @@ function Body({ history, onRetry }: { history: IncidentHistoryState; onRetry: ()
             />
           )}
           {entries.length > 0 ? (
-            <ol className="divide-y divide-zinc-200 dark:divide-zinc-800">
+            <ol
+              aria-label="Saved decisions, newest first"
+              className="divide-y divide-zinc-200 dark:divide-zinc-800"
+            >
               {entries.map((entry) => (
                 <Entry key={entry.id} entry={entry} />
               ))}

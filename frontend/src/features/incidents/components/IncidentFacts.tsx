@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import { formatDatetime } from '@/lib/utils'
 import {
   CAUSE_CATEGORY_LABELS,
   FALLBACK_LABELS,
@@ -7,15 +6,11 @@ import {
 } from '@/features/incidents/labels'
 import type { IncidentDetail } from '@/features/incidents/types'
 import { IncidentStatusBadge } from './IncidentBadges'
+import { IncidentTime } from './IncidentTime'
 import { Missing, Text } from './MissingValue'
 
 const CARD =
   'rounded-lg border border-zinc-200 bg-white p-4 shadow-sm sm:p-5 dark:border-zinc-800 dark:bg-zinc-900'
-
-function Time({ at }: { at: Date | null }) {
-  if (!at) return FALLBACK_LABELS.lastSignalAt
-  return <time dateTime={at.toISOString()}>{formatDatetime(at)}</time>
-}
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -57,20 +52,30 @@ export function IncidentFacts({ incident }: { incident: IncidentDetail }) {
               <Text value={incident.deviceId} />
             </span>
           </Fact>
-          <Fact label="Connectivity">
+          <Fact label="Pendant connectivity">
             <IncidentStatusBadge status={incident.status} />
           </Fact>
           <Fact label="Location">
             <Text value={incident.suburb} />, <Text value={incident.state} />{' '}
             <Text value={incident.postcode} />
           </Fact>
-          <Fact label="Last signal">
-            <Time at={incident.lastSignalAt} />
+          <Fact label="Reported (simulated)">
+            <IncidentTime
+              at={incident.reportedAt}
+              fallback={
+                incident.legacyTimeline
+                  ? NOT_IN_DATASET_LABELS.legacyReportedAt
+                  : FALLBACK_LABELS.reportedAt
+              }
+            />
           </Fact>
-          <Fact label="Incident created">
-            <Time at={incident.createdAt} />
+          <Fact label="Last signal (simulated)">
+            <IncidentTime at={incident.lastSignalAt} fallback={FALLBACK_LABELS.lastSignalAt} />
           </Fact>
         </dl>
+        <p className="mt-3 text-xs text-zinc-500">
+          A historical, fictional scenario — not a live alert. Times are Melbourne time.
+        </p>
       </section>
 
       <section aria-labelledby="incident-evidence-heading" className={CARD}>
@@ -99,6 +104,33 @@ export function IncidentFacts({ incident }: { incident: IncidentDetail }) {
           </Fact>
           <Fact label="Recommended action (advisory)">
             <Prose value={incident.recommendedAction} />
+          </Fact>
+        </dl>
+      </section>
+
+      <section
+        aria-labelledby="incident-record-heading"
+        className="rounded-lg border border-dashed border-zinc-300 p-4 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+      >
+        <h2 id="incident-record-heading" className="font-semibold text-zinc-700 dark:text-zinc-300">
+          Dataset record
+        </h2>
+        <p className="mt-1">
+          Technical details of the demonstration record itself, not of the simulated incident.
+        </p>
+        <dl className="mt-2 space-y-2">
+          <Fact label="Record created">
+            <IncidentTime at={incident.createdAt} fallback={FALLBACK_LABELS.createdAt} />
+            <span className="block text-zinc-500">
+              When this record was added to the demo database.
+            </span>
+          </Fact>
+          <Fact label="Data format">
+            {incident.legacyTimeline
+              ? 'Version 1 (earlier format)'
+              : incident.dataIssues.includes('_schemaVersion')
+                ? 'Unrecognised version'
+                : 'Version 2'}
           </Fact>
         </dl>
       </section>

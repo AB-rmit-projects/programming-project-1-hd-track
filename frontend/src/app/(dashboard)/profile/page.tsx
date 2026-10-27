@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { getServerSession } from '@/actions/auth.actions'
 
 export const metadata: Metadata = {
-  title: 'Profile',
+  title: 'Account',
 }
 
 export default async function ProfilePage() {
@@ -11,8 +11,8 @@ export default async function ProfilePage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
-        <p className="mt-1 text-sm text-zinc-500">Manage your account details.</p>
+        <h1 className="text-2xl font-bold tracking-tight">Account</h1>
+        <p className="mt-1 text-sm text-zinc-500">The operator account you are signed in with.</p>
       </div>
 
       <div className="space-y-4 rounded-lg border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">

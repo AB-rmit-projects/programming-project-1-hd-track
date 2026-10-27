@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
-const PROTECTED_ROUTES = ['/dashboard', '/profile', '/settings']
+const PROTECTED_ROUTES = ['/dashboard', '/profile']
 
 /**
  * Optimistic proxy — checks for the presence of the session cookie only.

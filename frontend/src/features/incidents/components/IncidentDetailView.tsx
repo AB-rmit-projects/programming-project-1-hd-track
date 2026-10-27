@@ -2,7 +2,15 @@
 
 import type { ReactNode } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, CloudOff, Info, SearchX, ShieldAlert, TriangleAlert } from 'lucide-react'
+import {
+  ArrowLeft,
+  ChevronRight,
+  CloudOff,
+  Info,
+  SearchX,
+  ShieldAlert,
+  TriangleAlert,
+} from 'lucide-react'
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner'
 import type { DecisionSubmissionState } from '@/features/incidents/hooks/useDecisionSubmission'
 import type { IncidentDetailState } from '@/features/incidents/hooks/useIncidentDetail'
@@ -28,10 +36,37 @@ export function BackToQueue() {
   )
 }
 
+/** Where this page sits: the queue, then this incident. */
+function Breadcrumbs({ current }: { current: string }) {
+  return (
+    <nav aria-label="Breadcrumb">
+      <ol className="flex flex-wrap items-center gap-1 text-sm text-zinc-500">
+        <li>
+          <Link
+            href="/dashboard"
+            className={`font-medium text-zinc-600 underline-offset-4 hover:text-zinc-900 hover:underline dark:text-zinc-400 dark:hover:text-zinc-100 ${LINK_FOCUS}`}
+          >
+            Incident queue
+          </Link>
+        </li>
+        <li aria-hidden="true">
+          <ChevronRight className="size-4" />
+        </li>
+        <li
+          aria-current="page"
+          className="min-w-0 [overflow-wrap:anywhere] text-zinc-900 dark:text-zinc-100"
+        >
+          {current}
+        </li>
+      </ol>
+    </nav>
+  )
+}
+
 function Header({ title, badges }: { title: string; badges?: ReactNode }) {
   return (
     <div className="space-y-3">
-      <BackToQueue />
+      <Breadcrumbs current={title} />
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold tracking-tight [overflow-wrap:anywhere]">{title}</h1>
         {badges && <div className="flex flex-wrap items-center gap-2">{badges}</div>}
@@ -51,6 +86,7 @@ export function InvalidIncidentLink() {
           from there.
         </p>
       </StatePanel>
+      <BackToQueue />
     </div>
   )
 }
@@ -159,6 +195,7 @@ export function IncidentDetailView({ detail, submission }: IncidentDetailViewPro
           />
         </div>
         <ActionHistory history={history} onRetry={retry} />
+        <BackToQueue />
       </div>
     )
   }
@@ -242,6 +279,8 @@ export function IncidentDetailView({ detail, submission }: IncidentDetailViewPro
       {status !== 'integrity-error' && status !== 'unavailable' && <SimulatedDataNotice />}
       {body}
       <OrphanFeedback submission={submission} />
+      {/* The unavailable panel already offers its own way back. */}
+      {status !== 'unavailable' && <BackToQueue />}
     </div>
   )
 }
