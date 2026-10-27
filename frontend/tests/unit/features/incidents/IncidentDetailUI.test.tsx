@@ -1037,6 +1037,18 @@ describe('IncidentDetail — Phase 6 timeline and navigation', () => {
     expect(fact('Reported (simulated)')).toHaveTextContent('Sun, 4 Oct 2026, 3:09 am AEDT')
   })
 
+  it('shows a fictional report later than the real record creation as normal, with no warning', () => {
+    const latest = storedIncident(ALICE, 48) // INC-049, the latest report; the record is older
+    showDetail(latest.id)
+    confirmBoth(latest)
+    expect(fact('Reported (simulated)')).toHaveTextContent('Tue, 27 Oct 2026, 8:36 am AEDT')
+    const record = screen.getByRole('region', { name: 'Dataset record' })
+    expect(within(record).getByText('Wed, 21 Oct 2026, 11:00 am AEDT')).toBeInTheDocument()
+    expect(within(record).getByText(/not when the fictional incident happened/)).toBeInTheDocument()
+    expect(screen.queryByText('This incident record has missing or unexpected fields.')).toBeNull()
+    expect(radio('REVIEWED')).toBeEnabled()
+  })
+
   it('a version 1 (legacy) record loads with no data warning and no invented report time', () => {
     showDetail()
     const { reportedAt: _reported, ...v1 } = A1.data

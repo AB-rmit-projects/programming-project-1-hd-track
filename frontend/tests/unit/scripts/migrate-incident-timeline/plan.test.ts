@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { Timestamp } from 'firebase/firestore'
 // The migration lives outside src/, so the @/ alias cannot reach it.
@@ -19,11 +20,20 @@ import {
   type StoredIncident,
 } from '../../../../scripts/migrate-incident-timeline/plan'
 import { expectedVersions } from '../../../../scripts/migrate-incident-timeline/migrate'
+import { LATEST_REPORTED_AT } from '../../../../scripts/seed-incidents/dataset'
 
 const OWNER = 'demoOperatorUid01'
 /** The live seed time recorded on 23 October 2026 (4:33:44 pm AEDT). */
 const SEED_TIME = new Date('2026-10-23T05:33:44.000Z')
 const VERSIONS = buildIncidentVersions(OWNER, SEED_TIME)
+/** A real clock after the whole simulated timeline (27 October 2026, 8:36 am AEDT). */
+const AFTER_TIMELINE = new Date('2026-10-28T00:00:00.000Z')
+/**
+ * SHA-256 of the canonical version 1 documents for OWNER and SEED_TIME, as on
+ * main at adebd4e (before the July–October timeline). It must never change:
+ * version 1 describes documents that already exist.
+ */
+const V1_CANONICAL_DIGEST = '721a0fbf03be8669b703db71ab52aaf3671a2dcefe9ae80719052193fd40de08'
 const IDS = VERSIONS.map((v) => v.id)
 
 const at = (seconds: number, nanoseconds = 0) => ({ seconds, nanoseconds })
@@ -65,23 +75,48 @@ describe('legacy (version 1) reconstruction', () => {
       expect(differingFields(v1, v2)).toEqual([...MIGRATED_FIELDS].sort())
       expect(v2.createdAt.getTime()).toBe(SEED_TIME.getTime())
       expect(v2._schemaVersion).toBe(2)
-      expect(v2.reportedAt.getTime()).toBeLessThanOrEqual(SEED_TIME.getTime()) // nothing future-dated
+      expect(v2.lastSignalAt.getTime()).toBeLessThan(v2.reportedAt.getTime())
     }
   })
 
-  it('refuses a seed time earlier than the latest report time', () => {
-    expect(() => buildIncidentVersions(OWNER, new Date('2026-10-01T00:00:00Z'))).toThrow(/future/)
+  it('keeps createdAt as the fixture write time, even when a fictional report comes after it', () => {
+    // Written on 23 October; the timeline runs to 27 October.
+    const later = VERSIONS.filter((v) => v.v2.reportedAt.getTime() > SEED_TIME.getTime())
+    expect(later.map((v) => v.v2.incidentCode).sort()).toEqual(['INC-006', 'INC-048', 'INC-049'])
+    for (const v of later) expect(v.v2.createdAt.getTime()).toBe(SEED_TIME.getTime())
+  })
+
+  it('rebuilds version 1 from the seed time alone, whatever the new timeline says', () => {
+    // v1 lastSignalAt = seed time − legacy offset; no scenario time is involved.
+    for (const [i, { v1 }] of VERSIONS.entries()) {
+      expect(SEED_TIME.getTime() - v1.lastSignalAt.getTime()).toBe(
+        LEGACY_V1_SIGNAL_OFFSET_MINUTES[i]! * 60_000
+      )
+    }
+    expect(
+      createHash('sha256')
+        .update(canonical(VERSIONS.map(({ id, v1 }) => ({ id, v1 }))))
+        .digest('hex')
+    ).toBe(V1_CANONICAL_DIGEST)
   })
 
   it('requires the explicit allowlist to be exactly the 50 derived IDs', () => {
-    expect(
-      expectedVersions({ ownerUid: OWNER, seedTime: SEED_TIME, allowlist: [...IDS].reverse() })
-    ).toHaveLength(50)
+    const target = { ownerUid: OWNER, seedTime: SEED_TIME, currentTime: AFTER_TIMELINE }
+    expect(expectedVersions({ ...target, allowlist: [...IDS].reverse() })).toHaveLength(50)
     for (const allowlist of [IDS.slice(1), [...IDS, 'extra'], [...IDS.slice(1), 'other_INC-001']]) {
-      expect(() => expectedVersions({ ownerUid: OWNER, seedTime: SEED_TIME, allowlist })).toThrow(
-        /allowlist/
-      )
+      expect(() => expectedVersions({ ...target, allowlist })).toThrow(/allowlist/)
     }
+  })
+
+  it('plans nothing while a simulated report time is still in the future (real clock)', () => {
+    const target = { ownerUid: OWNER, seedTime: SEED_TIME, allowlist: IDS }
+    expect(() =>
+      expectedVersions({ ...target, currentTime: new Date(LATEST_REPORTED_AT.getTime() - 1) })
+    ).toThrow(/future/)
+    expect(() => expectedVersions({ ...target, currentTime: new Date(Number.NaN) })).toThrow(
+      /future/
+    )
+    expect(expectedVersions({ ...target, currentTime: LATEST_REPORTED_AT })).toHaveLength(50)
   })
 })
 

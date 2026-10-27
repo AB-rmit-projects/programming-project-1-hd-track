@@ -5,6 +5,7 @@ import {
   CATEGORY_DISTRIBUTION,
   LATEST_REPORTED_AT,
   SEED_INCIDENT_COUNT,
+  assertTimelineInPast,
   buildSeedIncidents,
   type SeedRecord,
 } from '../../../../scripts/seed-incidents/dataset'
@@ -164,7 +165,7 @@ describe('seed dataset schema', () => {
     expect(new Set(records.map((r) => r.data.suburb)).size).toBe(50)
   })
 
-  it('uses now only for createdAt (the real write time); simulated times come from the timeline', () => {
+  it('uses createdAt only for createdAt (the real write time); simulated times come from the timeline', () => {
     const later = buildSeedIncidents(OWNER, new Date('2026-11-30T12:00:00.000Z'))
     for (const [i, { data }] of records.entries()) {
       expect(data.createdAt).toBeInstanceOf(Date)
@@ -186,13 +187,21 @@ describe('seed dataset schema', () => {
     expect(first!.data.reportedAt).not.toBe(second!.data.reportedAt)
   })
 
-  it('refuses a seed time before the latest report time (no future-dated incidents)', () => {
-    expect(LATEST_REPORTED_AT.toISOString()).toBe('2026-10-20T09:12:07.000Z')
-    expect(() => buildSeedIncidents(OWNER, new Date(LATEST_REPORTED_AT.getTime() - 1))).toThrow(
-      /future/
-    )
-    expect(() => buildSeedIncidents(OWNER, new Date(Number.NaN))).toThrow(/future/)
-    expect(buildSeedIncidents(OWNER, LATEST_REPORTED_AT)).toHaveLength(50)
+  it('accepts a createdAt earlier than some simulated report times (fixture time ≠ incident time)', () => {
+    // The live fixture was written on 23 October; the fictional timeline runs to 27 October.
+    const written = new Date('2026-10-23T05:33:44.000Z')
+    const built = buildSeedIncidents(OWNER, written)
+    const later = built.filter((r) => r.data.reportedAt.getTime() > written.getTime())
+    expect(later.map((r) => r.data.incidentCode)).toEqual(['INC-006', 'INC-048', 'INC-049'])
+    for (const r of built) expect(r.data.createdAt.getTime()).toBe(written.getTime())
+    expect(() => buildSeedIncidents(OWNER, new Date(Number.NaN))).toThrow(/createdAt/)
+  })
+
+  it('refuses, against the real clock, while any simulated report time is in the future', () => {
+    expect(LATEST_REPORTED_AT.toISOString()).toBe('2026-10-26T21:36:17.000Z') // 27 Oct, 8:36:17 am AEDT
+    expect(() => assertTimelineInPast(new Date(LATEST_REPORTED_AT.getTime() - 1))).toThrow(/future/)
+    expect(() => assertTimelineInPast(new Date(Number.NaN))).toThrow(/invalid date.*future/)
+    expect(() => assertTimelineInPast(LATEST_REPORTED_AT)).not.toThrow()
   })
 
   it('rejects owner UIDs that would break the rules incidentId pattern', () => {
@@ -212,25 +221,57 @@ describe('seed dataset timeline (schema v2)', () => {
   const silent = records.filter((r) => r.data.status === 'SILENT')
   const offline = records.filter((r) => r.data.status === 'OFFLINE')
 
-  it('reports every incident between 1 September and 20 October 2026 (Melbourne dates)', () => {
+  it('reports every incident between 1 July and 27 October 2026 (Melbourne dates)', () => {
     for (const r of records) {
       const day = melbourneDateKey(r.data.reportedAt)
-      expect(day >= '2026-09-01' && day <= '2026-10-20', r.data.incidentCode).toBe(true)
+      expect(day >= '2026-07-01' && day <= '2026-10-27', r.data.incidentCode).toBe(true)
     }
   })
 
-  it('splits the incidents 25 September / 25 October', () => {
+  it('splits the incidents 12 July / 12 August / 12 September / 14 October', () => {
     expect(countBy(records, (r) => melbourneDateKey(r.data.reportedAt).slice(0, 7))).toEqual({
-      '2026-09': 25,
-      '2026-10': 25,
+      '2026-07': 12,
+      '2026-08': 12,
+      '2026-09': 12,
+      '2026-10': 14,
     })
   })
 
-  it('keeps every time in the past relative to the real write time', () => {
+  it('starts on 1 July and ends on 27 October at a fixed morning time', () => {
+    const sorted = [...records].sort(
+      (a, b) => a.data.reportedAt.getTime() - b.data.reportedAt.getTime()
+    )
+    expect(sorted[0]!.data.incidentCode).toBe('INC-007')
+    expect(local(sorted[0]!.data.reportedAt)).toBe('2026-07-01T07:22:05')
+    expect(sorted.at(-1)!.data.incidentCode).toBe('INC-049')
+    expect(local(sorted.at(-1)!.data.reportedAt)).toBe('2026-10-27T08:36:17')
+    expect(sorted.at(-1)!.data.reportedAt.getTime()).toBe(LATEST_REPORTED_AT.getTime())
+  })
+
+  it('puts every last signal before its report', () => {
     for (const { data } of records) {
       expect(data.lastSignalAt.getTime()).toBeLessThan(data.reportedAt.getTime())
-      expect(data.reportedAt.getTime()).toBeLessThanOrEqual(data.createdAt.getTime())
     }
+  })
+
+  it('mixes incident kinds in every month instead of grouping them', () => {
+    for (const month of ['2026-07', '2026-08', '2026-09', '2026-10']) {
+      const inMonth = records.filter((r) => melbourneDateKey(r.data.reportedAt).startsWith(month))
+      expect(new Set(inMonth.map((r) => r.data.causeCategory)).size, month).toBeGreaterThanOrEqual(
+        4
+      )
+      expect(new Set(inMonth.map((r) => r.data.status)).size, month).toBe(2)
+    }
+  })
+
+  it('has busy days and quiet spells rather than an even spacing', () => {
+    const days = countBy(records, (r) => melbourneDateKey(r.data.reportedAt))
+    expect(Object.values(days).filter((n) => n >= 2).length).toBeGreaterThanOrEqual(2)
+    const sorted = Object.keys(days).sort()
+    const spells = sorted
+      .slice(1)
+      .map((day, i) => (Date.parse(day) - Date.parse(sorted[i]!)) / 86_400_000)
+    expect(spells.filter((d) => d >= 5).length).toBeGreaterThanOrEqual(3)
   })
 
   it('spreads report times over the whole day and night', () => {
@@ -297,10 +338,11 @@ describe('seed dataset timeline (schema v2)', () => {
       records
         .filter((r) => r.data.evidenceSummary.includes(`simulated ${kind} advisory`))
         .map((r) => melbourneDateKey(r.data.reportedAt))
-    for (const day of hazardDays('flood'))
-      expect(day >= '2026-09-21' && day <= '2026-09-25').toBe(true)
+    // A winter coastal storm, a late-winter Murray flood, an early-season bushfire period.
     for (const day of hazardDays('severe-storm'))
-      expect(day >= '2026-10-02' && day <= '2026-10-06').toBe(true)
+      expect(day >= '2026-07-14' && day <= '2026-07-15').toBe(true)
+    for (const day of hazardDays('flood'))
+      expect(day >= '2026-08-20' && day <= '2026-08-24').toBe(true)
     for (const day of hazardDays('bushfire'))
       expect(day >= '2026-10-13' && day <= '2026-10-18').toBe(true)
     expect(hazardDays('flood')).toHaveLength(3)
@@ -317,12 +359,16 @@ describe('seed dataset timeline (schema v2)', () => {
     expect(gapMinutes(r)).toBeCloseTo(22.2, 5)
   })
 
-  it('pins representative CP8A timeline entries exactly', () => {
+  it('pins representative timeline entries exactly, one or more per month', () => {
+    expect(local(byCode('INC-007').data.reportedAt)).toBe('2026-07-01T07:22:05')
+    expect(byCode('INC-007').data.reportedAt.toISOString()).toBe('2026-06-30T21:22:05.000Z') // AEST
+    expect(local(byCode('INC-018').data.reportedAt)).toBe('2026-07-15T17:14:26')
+    expect(local(byCode('INC-044').data.reportedAt)).toBe('2026-08-24T05:58:22')
     expect(byCode('INC-001').data.reportedAt.toISOString()).toBe('2026-09-04T08:23:40.000Z')
     expect(local(byCode('INC-001').data.reportedAt)).toBe('2026-09-04T18:23:40')
     expect(local(byCode('INC-005').data.reportedAt)).toBe('2026-10-13T16:08:53')
-    expect(local(byCode('INC-007').data.reportedAt)).toBe('2026-09-01T07:22:05')
-    expect(local(byCode('INC-049').data.reportedAt)).toBe('2026-10-20T20:12:07')
+    expect(local(byCode('INC-049').data.reportedAt)).toBe('2026-10-27T08:36:17')
+    expect(byCode('INC-049').data.reportedAt.toISOString()).toBe('2026-10-26T21:36:17.000Z') // AEDT
   })
 
   it('keeps incident codes as dataset references, not in date order', () => {
@@ -334,7 +380,7 @@ describe('seed dataset timeline (schema v2)', () => {
 
   it('defines every scenario time as a valid Melbourne wall-clock time', () => {
     for (const scenario of SCENARIOS) {
-      expect(scenario.reported).toMatch(/^2026-(09|10)-\d{2}T\d{2}:\d{2}:\d{2}$/)
+      expect(scenario.reported).toMatch(/^2026-(07|08|09|10)-\d{2}T\d{2}:\d{2}:\d{2}$/)
       expect(scenario.lastSignal < scenario.reported).toBe(true)
     }
     for (const [i, r] of records.entries()) {

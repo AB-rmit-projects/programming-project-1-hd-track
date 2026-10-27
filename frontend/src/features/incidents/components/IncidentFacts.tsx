@@ -122,7 +122,8 @@ export function IncidentFacts({ incident }: { incident: IncidentDetail }) {
           <Fact label="Record created">
             <IncidentTime at={incident.createdAt} fallback={FALLBACK_LABELS.createdAt} />
             <span className="block text-zinc-500">
-              When this record was added to the demo database.
+              When this record was added to the demo database — not when the fictional incident
+              happened, so it can be earlier or later than the simulated times.
             </span>
           </Fact>
           <Fact label="Data format">

@@ -9,8 +9,11 @@ import { SCENARIO_KINDS, SCENARIOS, scenarioText, type ScenarioKind } from './sc
  * records. Nothing here touches Firestore — writing is the seed runner's job.
  *
  * The simulated times (`reportedAt`, `lastSignalAt`) come from the fixed
- * scenario timeline, never from the clock. Only `createdAt` uses `now`: it is
- * the real time the documents are written.
+ * scenario timeline, never from the clock. Only `createdAt` is given: it is
+ * the real time the documents are written, and is independent of the
+ * simulated times — a fixture written on 23 October can describe an incident
+ * reported on 27 October. Callers with a real clock check
+ * assertTimelineInPast before writing, so no incident is ever future-dated.
  */
 
 export const SEED_INCIDENT_COUNT = 50
@@ -51,10 +54,25 @@ export const SCENARIO_TIMES: readonly { reportedAt: Date; lastSignalAt: Date }[]
   })
 )
 
-/** The latest simulated report time. A seed run before it would create future-dated incidents. */
+/** The latest simulated report time. Writing the timeline before it would future-date incidents. */
 export const LATEST_REPORTED_AT = new Date(
   Math.max(...SCENARIO_TIMES.map((t) => t.reportedAt.getTime()))
 )
+
+/**
+ * Throws unless the real current time `now` is at or after every simulated
+ * report time. The seed CLI and the timeline migration call it with the real
+ * clock before writing; the dataset builders themselves never read a clock.
+ */
+export function assertTimelineInPast(now: Date): void {
+  if (!(now.getTime() >= LATEST_REPORTED_AT.getTime())) {
+    const current = Number.isNaN(now.getTime()) ? 'an invalid date' : now.toISOString()
+    throw new Error(
+      `The current time ${current} is before the latest simulated report time ` +
+        `${LATEST_REPORTED_AT.toISOString()}; incidents would be dated in the future`
+    )
+  }
+}
 
 export interface SeedRecord {
   /** Deterministic Firestore document ID: `{ownerUid}_{incidentCode}`. */
@@ -76,17 +94,12 @@ export function deviceId(index: number): string {
   return `SC-${1000 + ((4821 + index * 7919) % 9000)}`
 }
 
-export function buildSeedIncidents(ownerUid: string, now: Date): SeedRecord[] {
+/** `createdAt` is the real write time of the documents (see the module comment). */
+export function buildSeedIncidents(ownerUid: string, createdAt: Date): SeedRecord[] {
   if (!OWNER_UID_PATTERN.test(ownerUid)) {
     throw new Error('ownerUid must be 1–120 characters of A–Z, a–z, 0–9, "_" or "-"')
   }
-  if (!(now.getTime() >= LATEST_REPORTED_AT.getTime())) {
-    const seedTime = Number.isNaN(now.getTime()) ? 'an invalid date' : now.toISOString()
-    throw new Error(
-      `Seed time ${seedTime} is before the latest simulated report time ` +
-        `${LATEST_REPORTED_AT.toISOString()}; incidents would be dated in the future`
-    )
-  }
+  if (Number.isNaN(createdAt.getTime())) throw new Error('createdAt must be a valid date')
 
   const seen: Partial<Record<ScenarioKind, number>> = {}
 
@@ -110,7 +123,7 @@ export function buildSeedIncidents(ownerUid: string, now: Date): SeedRecord[] {
       causeCategory: category,
       ...scenarioText(scenario, occurrence),
       isSimulated: true,
-      createdAt: new Date(now.getTime()),
+      createdAt: new Date(createdAt.getTime()),
       _schemaVersion: INCIDENT_SCHEMA_VERSION,
     } satisfies SeedIncidentData
 

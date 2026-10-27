@@ -1,6 +1,6 @@
 import { readFileSync, realpathSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
-import { SEED_INCIDENT_COUNT, buildSeedIncidents } from './dataset.ts'
+import { SEED_INCIDENT_COUNT, assertTimelineInPast, buildSeedIncidents } from './dataset.ts'
 import { CREDENTIAL_ENV_VARS, USAGE, parseSeedOptions, type SeedOptions } from './options.ts'
 import {
   adminIncidentStore,
@@ -217,7 +217,14 @@ export async function main(
     return EXIT_REFUSED
   }
 
-  const records = buildSeedIncidents(options.ownerUid, deps.now())
+  const now = deps.now()
+  try {
+    assertTimelineInPast(now)
+  } catch (error) {
+    io.err(`Refused: ${messageOf(error)}.`)
+    return EXIT_REFUSED
+  }
+  const records = buildSeedIncidents(options.ownerUid, now)
   if (records.length !== SEED_INCIDENT_COUNT) {
     io.err(`Internal error: expected ${SEED_INCIDENT_COUNT} seed records, built ${records.length}.`)
     return 1

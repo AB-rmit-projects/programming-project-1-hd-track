@@ -41,9 +41,11 @@ export interface IncidentVersions {
 
 /**
  * Both versions of every incident for one owner and the original seed time.
- * `seedTime` is the version 1 `createdAt`; it must not be before the latest
- * simulated report time (buildSeedIncidents refuses), which also keeps the
- * migrated documents free of future-dated incidents.
+ * `seedTime` is the version 1 `createdAt`, kept unchanged in version 2. It may
+ * be earlier than some simulated report times: `createdAt` records when the
+ * fixture was written, not when the fictional incident happened. Pure — the
+ * check that no report time is in the future uses the real clock, in
+ * expectedVersions (migrate.ts).
  */
 export function buildIncidentVersions(ownerUid: string, seedTime: Date): IncidentVersions[] {
   const current: SeedRecord[] = buildSeedIncidents(ownerUid, seedTime)

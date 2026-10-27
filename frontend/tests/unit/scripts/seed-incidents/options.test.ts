@@ -403,7 +403,7 @@ describe('main — safety checks run before any Firebase access', () => {
       openStore: vi.fn(async () => {
         throw new Error('openStore must not be reached in these tests')
       }),
-      now: () => new Date('2026-10-21T00:00:00.000Z'),
+      now: () => new Date('2026-10-28T00:00:00.000Z'), // after the whole simulated timeline
       ...overrides,
     } satisfies CliDeps
   }
