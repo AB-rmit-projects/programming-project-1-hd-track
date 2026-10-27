@@ -69,7 +69,7 @@ This enables **lazy migration** — when a document is read, check `_schemaVersi
 | `recommendedAction` | `string` | Yes | Simulated, advisory-only recommendation |
 | `evidenceSummary` | `string` | Yes | Fictional supporting evidence |
 | `isSimulated` | `true` | Yes | Always true; shown as a label in the UI |
-| `createdAt` | `Timestamp` | Yes | **Real**: when the document was written (the seed time). Dataset metadata, never changed by the migration; shown only in the detail page's "Dataset record" box. Independent of the simulated times: a record written on 23 Oct can describe an incident reported on 27 Oct, and that is not a data issue |
+| `createdAt` | `Timestamp` | Yes | **Real**: when the document was written (the seed time). Dataset metadata, never changed by the migration; not shown in the operator UI. Independent of the simulated times: a record written on 23 Oct can describe an incident reported on 27 Oct, and that is not a data issue |
 | `_schemaVersion` | `2` | Yes | Schema version (`1` before the Phase 6 migration) |
 
 **Queries:** always `where('ownerUid', '==', uid)` — use `ownIncidentsConstraints(uid)`.

@@ -324,16 +324,12 @@ describe('IncidentDetail — incident details', () => {
     )
     expect(lastSignal.tagName).toBe('TIME')
     expect(lastSignal).toHaveAttribute('dateTime', seed.lastSignalAt.toISOString())
-    // The real record-creation time is secondary dataset metadata, not an incident fact.
-    const record = screen.getByRole('region', { name: 'Dataset record' })
-    expect(within(record).getByText(formatMelbourneDateTime(seed.createdAt))).toBeInTheDocument()
-    expect(within(record).getByText('Version 2')).toBeInTheDocument()
-    expect(
-      within(screen.getByRole('region', { name: 'Incident facts' })).queryByText(
-        formatMelbourneDateTime(seed.createdAt)
-      )
-    ).toBeNull()
-    expect(screen.queryByText('Incident created')).toBeNull()
+    // The real record-creation time and schema version are stored but never shown to operators.
+    expect(screen.queryByRole('region', { name: 'Dataset record' })).toBeNull()
+    expect(screen.queryByText(formatMelbourneDateTime(seed.createdAt))).toBeNull()
+    for (const label of ['Record created', 'Data format', 'Incident created']) {
+      expect(screen.queryByText(label)).toBeNull()
+    }
     expect(fact('Cause category')).toHaveTextContent(CAUSE_CATEGORY_LABELS[seed.causeCategory])
     expect(fact('Cause category')).toHaveTextContent('not a confirmed cause')
     expect(fact('Likely cause (interpretation)')).toHaveTextContent(seed.likelyCause)
@@ -1042,9 +1038,7 @@ describe('IncidentDetail — Phase 6 timeline and navigation', () => {
     showDetail(latest.id)
     confirmBoth(latest)
     expect(fact('Reported (simulated)')).toHaveTextContent('Tue, 27 Oct 2026, 8:36 am AEDT')
-    const record = screen.getByRole('region', { name: 'Dataset record' })
-    expect(within(record).getByText('Wed, 21 Oct 2026, 11:00 am AEDT')).toBeInTheDocument()
-    expect(within(record).getByText(/not when the fictional incident happened/)).toBeInTheDocument()
+    expect(screen.queryByText('Wed, 21 Oct 2026, 11:00 am AEDT')).toBeNull() // createdAt is not shown
     expect(screen.queryByText('This incident record has missing or unexpected fields.')).toBeNull()
     expect(radio('REVIEWED')).toBeEnabled()
   })
@@ -1063,11 +1057,7 @@ describe('IncidentDetail — Phase 6 timeline and navigation', () => {
     expect(fact('Reported (simulated)').querySelector('time')).toBeNull()
     expect(fact('Last signal (simulated)').querySelector('time')).not.toBeNull()
     expect(screen.queryByText('This incident record has missing or unexpected fields.')).toBeNull()
-    expect(
-      within(screen.getByRole('region', { name: 'Dataset record' })).getByText(
-        'Version 1 (earlier format)'
-      )
-    ).toBeInTheDocument()
+    expect(screen.queryByText('Version 1 (earlier format)')).toBeNull()
     // The decision workflow is unchanged for a legacy record.
     expect(radio('REVIEWED')).toBeEnabled()
   })
