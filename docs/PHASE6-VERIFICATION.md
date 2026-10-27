@@ -2,11 +2,13 @@
 
 Branch `feature/safecall-phase6-ui-timeline` from `main` @ `5d04a3b` (27 October 2026). Live Firebase was **not** read or changed for this phase: no incident was migrated and no decision was recorded.
 
+> **Timeline superseded (CP10C, 27 October 2026).** This record describes the Phase 6 timeline as verified: 1 Sep – 20 Oct, 25 + 25. Before any live migration it was widened to **1 Jul – 27 Oct (12 / 12 / 12 / 14)** on `feature/safecall-july-october-timeline`. The counts, dates and screenshots below are the Phase 6 results; the current timeline and its tests are in [SEEDING.md → Timeline](SEEDING.md#timeline-schema-v2).
+
 ## What changed
 
 | Area | Change |
 |---|---|
-| **6A — data model** | Incident schema **version 2**: new simulated `reportedAt`; `lastSignalAt` re-based onto a fixed 1 Sep – 20 Oct 2026 timeline; `createdAt` stays the real document-creation time. Version 1 records still load (`legacyTimeline`, no invented report time). See [FIRESTORE-SCHEMA.md](FIRESTORE-SCHEMA.md#incidents-collection-safecall) and [SEEDING.md → Timeline](SEEDING.md#timeline-schema-v2-phase-6). |
+| **6A — data model** | Incident schema **version 2**: new simulated `reportedAt`; `lastSignalAt` re-based onto a fixed 1 Sep – 20 Oct 2026 timeline; `createdAt` stays the real document-creation time. Version 1 records still load (`legacyTimeline`, no invented report time). See [FIRESTORE-SCHEMA.md](FIRESTORE-SCHEMA.md#incidents-collection-safecall) and [SEEDING.md → Timeline](SEEDING.md#timeline-schema-v2). |
 | **Time display** | `frontend/src/lib/melbourneTime.ts`: every time is shown in Australia/Melbourne time with AEST/AEDT, whatever the viewer's or server's time zone. Decision-history times use it too. |
 | **6B — queue** | Search (code, device, suburb, postcode), pendant connectivity filter, inclusive report-date range (Melbourne dates), six sort orders with deterministic tie-breaks, Clear filters, "N of M match" live region, zero-results state. All client-side over the existing owner-scoped listener — no new query, rule or index. Review counts unchanged. |
 | **6C — UI/UX** | Whole-row/card click target with a visible "Review ›" cue (still one named link per incident); table from xl, two-up cards below; tabs fit a 320 px phone; mobile navigation row; breadcrumb + bottom back link on the detail page; "Pendant offline / silent" wording and legend, separate from app-connection messages; real `createdAt` moved to a secondary "Dataset record" box; empty Settings page and template copy removed; SafeCall branding (mark, metadata, landing page, auth pages). |

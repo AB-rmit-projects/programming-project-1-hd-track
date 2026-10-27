@@ -671,19 +671,43 @@ describe('IncidentDashboard — search, filters and sorting (Phase 6)', () => {
     expect(screen.getByRole('tab', { name: /^All/ })).toHaveTextContent('50')
   })
 
-  it('date range distinguishes September from October (25 each), inclusive Melbourne dates', () => {
+  it.each([
+    ['July', '2026-07-01', '2026-07-31', 12],
+    ['August', '2026-08-01', '2026-08-31', 12],
+    ['September', '2026-09-01', '2026-09-30', 12],
+    ['October to date', '2026-10-01', '2026-10-27', 14],
+    ['the whole timeline', '2026-07-01', '2026-10-27', 50],
+  ])('date range: %s (%s to %s, inclusive Melbourne dates) shows %i incidents', (_l, f, t, n) => {
     showDashboard(seededSummary(ALICE))
-    setDates('2026-09-01', '2026-09-30')
-    expect(tableRows()).toHaveLength(25)
-    setDates('2026-10-01', '2026-10-20')
-    expect(tableRows()).toHaveLength(25)
+    setDates(f, t)
+    expect(tableRows()).toHaveLength(n)
+    expect(resultLine()).toHaveTextContent(`${n} of 50 incidents match your filters.`)
   })
 
-  it('date range isolates the fictional flood advisory period (21–25 Sep)', () => {
+  it('date range bounds are inclusive Melbourne dates at both ends of the timeline', () => {
     showDashboard(seededSummary(ALICE))
-    setDates('2026-09-21', '2026-09-25')
-    expect(shownCodes()).toEqual(['INC-044', 'INC-029', 'INC-025', 'INC-004', 'INC-012'])
-    expect(resultLine()).toHaveTextContent('5 of 50 incidents match your filters.')
+    // INC-007: 1 Jul, 7:22 am AEST — still 30 June in UTC.
+    setDates('2026-07-01', '2026-07-01')
+    expect(shownCodes()).toEqual(['INC-007'])
+    // INC-049: 27 Oct, 8:36 am AEDT — 26 October in UTC.
+    setDates('2026-10-27', '2026-10-27')
+    expect(shownCodes()).toEqual(['INC-049'])
+    // One day in from either end drops exactly that incident.
+    setDates('2026-07-02', '2026-10-27')
+    expect(tableRows()).toHaveLength(49)
+    expect(shownCodes()).not.toContain('INC-007')
+    setDates('2026-07-01', '2026-10-26')
+    expect(tableRows()).toHaveLength(49)
+    expect(shownCodes()).not.toContain('INC-049')
+  })
+
+  it('date range isolates the fictional storm (14–15 Jul) and flood (20–24 Aug) advisory periods', () => {
+    showDashboard(seededSummary(ALICE))
+    setDates('2026-07-14', '2026-07-15')
+    expect(shownCodes()).toEqual(['INC-018', 'INC-039'])
+    setDates('2026-08-20', '2026-08-24')
+    expect(shownCodes()).toEqual(['INC-044', 'INC-025', 'INC-012'])
+    expect(resultLine()).toHaveTextContent('3 of 50 incidents match your filters.')
   })
 
   it('a one-day range includes incidents on that Melbourne date only, at either end of the day', () => {
@@ -691,29 +715,69 @@ describe('IncidentDashboard — search, filters and sorting (Phase 6)', () => {
     // 4 Oct: INC-036, reported 3:09 am AEDT — 3 Oct in UTC.
     setDates('2026-10-04', '2026-10-04')
     expect(shownCodes()).toEqual(['INC-036'])
-    // 20 Oct: INC-006 (9:30 am) and INC-049 (8:12 pm AEDT, 09:12 UTC).
-    setDates('2026-10-20', '2026-10-20')
-    expect(shownCodes()).toEqual(['INC-049', 'INC-006'])
+    // 14 Oct: INC-031 (3:20 am AEDT, 13 Oct in UTC) and INC-043 (8:24 pm AEDT).
+    setDates('2026-10-14', '2026-10-14')
+    expect(shownCodes()).toEqual(['INC-043', 'INC-031'])
+    // 22 Jul: the two western-district outages (Stawell 1:29 pm, Hamilton 2:57 pm AEST).
+    setDates('2026-07-22', '2026-07-22')
+    expect(shownCodes()).toEqual(['INC-016', 'INC-033'])
   })
 
-  it('combines filters with the review tabs: silent pendants in October, then only reviewed ones', async () => {
+  it('sorts deterministically within a date range', async () => {
+    const user = userEvent.setup()
+    showDashboard(seededSummary(ALICE))
+    setDates('2026-08-01', '2026-08-31')
+    await user.selectOptions(sortBy(), 'REPORTED_ASC')
+    const august = ['INC-019', 'INC-050', 'INC-020', 'INC-023', 'INC-013', 'INC-034']
+    expect(shownCodes()).toEqual([
+      ...august,
+      'INC-012',
+      'INC-025',
+      'INC-044',
+      'INC-026',
+      'INC-029',
+      'INC-014',
+    ])
+    await user.selectOptions(sortBy(), 'CODE_ASC')
+    expect(shownCodes()).toEqual([
+      'INC-012',
+      'INC-013',
+      'INC-014',
+      'INC-019',
+      'INC-020',
+      'INC-023',
+      'INC-025',
+      'INC-026',
+      'INC-029',
+      'INC-034',
+      'INC-044',
+      'INC-050',
+    ])
+  })
+
+  it('combines filters with the review tabs: silent pendants in July–August, then only reviewed ones', async () => {
     const user = userEvent.setup()
     showDashboard(seededSummary(ALICE, ['INC-008', 'INC-001']))
     await user.selectOptions(connectivity(), 'SILENT')
-    setDates('2026-10-01', '2026-10-31')
+    setDates('2026-07-01', '2026-08-31')
     expect(shownCodes()).toEqual([
-      'INC-006',
-      'INC-048',
-      'INC-045',
-      'INC-008',
-      'INC-041',
+      'INC-025',
+      'INC-012',
       'INC-034',
+      'INC-023',
+      'INC-008',
       'INC-039',
+      'INC-041',
     ])
+    expect(resultLine()).toHaveTextContent('7 of 50 incidents match your filters.')
 
     await user.click(screen.getByRole('tab', { name: /^Reviewed/ }))
     expect(shownCodes()).toEqual(['INC-008'])
     expect(resultLine()).toHaveTextContent('1 of 2 reviewed incidents match your filters.')
+
+    // Clear filters restores the tab's full list.
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(shownCodes()).toEqual(['INC-001', 'INC-008'])
   })
 
   it('an inverted date range explains itself and shows no incidents', () => {
@@ -813,7 +877,8 @@ describe('IncidentDashboard — version 1 (legacy) incidents before migration', 
   it('a date filter leaves legacy records out instead of guessing a date', () => {
     const rows = [...legacyRows(ALICE).slice(0, 2), ...seededRows(ALICE).slice(2)]
     showDashboard(summaryFor(rows, ALICE))
-    fireEvent.change(screen.getByLabelText('Reported from'), { target: { value: '2026-09-01' } })
+    // From the very start of the timeline: every v2 record matches, neither legacy one does.
+    fireEvent.change(screen.getByLabelText('Reported from'), { target: { value: '2026-07-01' } })
     expect(tableRows()).toHaveLength(48)
     expect(screen.queryByRole('link', { name: 'Open incident INC-001' })).toBeNull()
   })

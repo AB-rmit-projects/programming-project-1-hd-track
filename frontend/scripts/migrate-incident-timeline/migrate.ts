@@ -1,4 +1,5 @@
 import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore'
+import { assertTimelineInPast } from '../seed-incidents/dataset.ts'
 import { buildIncidentVersions, type IncidentVersions } from './legacy.ts'
 import {
   DELETE_FIELD,
@@ -44,10 +45,13 @@ export interface MigrationTarget {
   seedTime: Date
   /** Exact allowlist; must equal the 50 IDs derived from ownerUid. */
   allowlist: readonly string[]
+  /** The real current time. Nothing is planned while a simulated report time is still in the future. */
+  currentTime: Date
 }
 
 /** The derived document versions, after checking the explicit allowlist matches them exactly. */
 export function expectedVersions(target: MigrationTarget): IncidentVersions[] {
+  assertTimelineInPast(target.currentTime)
   const versions = buildIncidentVersions(target.ownerUid, target.seedTime)
   const derived = versions.map((v) => v.id)
   const given = [...target.allowlist]

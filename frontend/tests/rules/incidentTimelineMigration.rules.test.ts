@@ -9,6 +9,7 @@ import {
 } from 'firebase-admin/firestore'
 import { ACTION_LOGS_COLLECTION, INCIDENTS_COLLECTION } from '@/lib/firebase/firestore'
 import { parseIncident } from '@/features/incidents/incidentRow'
+import { melbourneDateKey } from '@/lib/melbourneTime'
 import {
   PROJECT_ID,
   assertEmulatorOnly,
@@ -28,6 +29,7 @@ import {
   type MigrationTarget,
 } from '../../scripts/migrate-incident-timeline/migrate'
 import { classify } from '../../scripts/migrate-incident-timeline/plan'
+import { LATEST_REPORTED_AT } from '../../scripts/seed-incidents/dataset'
 
 // Emulator rehearsal of the schema v1 → v2 timeline migration: real Admin SDK
 // reads, an atomic batch with last-update-time preconditions, verification by
@@ -48,6 +50,8 @@ const target: MigrationTarget = {
   ownerUid: OWNER,
   seedTime: SEED_TIME,
   allowlist: versions.map((v) => v.id),
+  // A fixed real clock after the whole simulated timeline (it ends 27 October, 8:36 am AEDT).
+  currentTime: new Date('2026-10-28T00:00:00.000Z'),
 }
 
 beforeAll(async () => {
@@ -163,6 +167,7 @@ describe('incident timeline migration — emulator rehearsal', () => {
           .classification
       ).toBe('V2_TARGET')
       expect(Object.keys(stored.data)).toHaveLength(16)
+      // createdAt stays the fixture's write time, even where the fictional report is later.
       expect((stored.data.createdAt as AdminTimestamp).toMillis()).toBe(SEED_TIME.getTime())
       expect((stored.data.reportedAt as AdminTimestamp).toMillis()).toBe(v.v2.reportedAt.getTime())
       expect(stored.data.ownerUid).toBe(OWNER)
@@ -231,6 +236,27 @@ describe('incident timeline migration — emulator rehearsal', () => {
     expect(plan.reasons.join()).toContain('likelyCause')
     expect((await write(store, target, plan.digest)).status).toBe('REFUSED')
     expectUnchanged(before, await everything(), allKeys(before))
+  })
+
+  it('refuses before reading or writing while a simulated report time is still in the future', async () => {
+    const before = await everything()
+    const early = { ...target, currentTime: new Date(LATEST_REPORTED_AT.getTime() - 1) }
+    await expect(dryRun(store, early)).rejects.toThrow(/future/)
+    const { plan } = await dryRun(store, target)
+    await expect(write(store, early, plan.digest)).rejects.toThrow(/future/)
+    expectUnchanged(before, await everything(), allKeys(before))
+  })
+
+  it('migrates the July–October timeline: 12 / 12 / 12 / 14 by Melbourne month', async () => {
+    const { plan } = await dryRun(store, target)
+    await write(store, target, plan.digest)
+    const months: Record<string, number> = {}
+    for (const v of versions) {
+      const stored = (await incidents().doc(v.id).get()).get('reportedAt') as AdminTimestamp
+      const month = melbourneDateKey(stored.toDate()).slice(0, 7)
+      months[month] = (months[month] ?? 0) + 1
+    }
+    expect(months).toEqual({ '2026-07': 12, '2026-08': 12, '2026-09': 12, '2026-10': 14 })
   })
 
   it('STOPs when the owner has an extra incident outside the allowlist', async () => {

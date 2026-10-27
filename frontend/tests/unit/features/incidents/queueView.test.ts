@@ -1,5 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
+import { Timestamp } from 'firebase/firestore'
+import { parseIncident } from '@/features/incidents/incidentRow'
 import {
   DEFAULT_FILTERS,
   applyFilters,
@@ -13,6 +15,8 @@ import {
   type QueueFilters,
 } from '@/features/incidents/queueView'
 import type { ReviewedIncidentRow } from '@/features/incidents/types'
+// The seed script lives outside src/, so the @/ alias cannot reach it.
+import { buildSeedIncidents } from '../../../../scripts/seed-incidents/dataset'
 
 function row(overrides: Partial<ReviewedIncidentRow> & { id: string }): ReviewedIncidentRow {
   return {
@@ -198,5 +202,84 @@ describe('reportedDateBounds', () => {
       ])
     ).toEqual({ min: '2026-09-01', max: '2026-10-20' })
     expect(reportedDateBounds([row({ id: '1', reportedAt: null })])).toBeNull()
+  })
+})
+
+describe('the July–October seed timeline', () => {
+  // The real 50 records, read back as the dashboard reads them.
+  const seed: ReviewedIncidentRow[] = buildSeedIncidents(
+    'demoOperatorUid01',
+    new Date('2026-10-23T05:33:44.000Z')
+  ).map(({ id, data }) => {
+    const parsed = parseIncident(id, {
+      ...data,
+      reportedAt: Timestamp.fromDate(data.reportedAt),
+      lastSignalAt: Timestamp.fromDate(data.lastSignalAt),
+      createdAt: Timestamp.fromDate(data.createdAt),
+    })
+    if (!parsed.ok) throw new Error(`seed record ${id} was rejected`)
+    return { ...parsed.row, reviewStatus: 'AWAITING_REVIEW' }
+  })
+  const range = (reportedFrom: string, reportedTo: string) =>
+    applyFilters(seed, filters({ reportedFrom, reportedTo })).length
+
+  it.each([
+    ['2026-07-01', '2026-07-31', 12],
+    ['2026-08-01', '2026-08-31', 12],
+    ['2026-09-01', '2026-09-30', 12],
+    ['2026-10-01', '2026-10-27', 14],
+    ['2026-07-01', '2026-10-27', 50],
+  ])('%s to %s holds %i incidents', (from, to, count) => {
+    expect(range(from, to)).toBe(count)
+  })
+
+  it('has nothing outside 1 July – 27 October, and the bounds are those two Melbourne dates', () => {
+    expect(range('2026-06-01', '2026-06-30')).toBe(0)
+    expect(range('2026-10-28', '2026-12-31')).toBe(0)
+    expect(reportedDateBounds(seed)).toEqual({ min: '2026-07-01', max: '2026-10-27' })
+  })
+
+  it('applies inclusive Melbourne-date bounds, not UTC dates', () => {
+    // INC-007 is 30 June in UTC; INC-049 is 26 October in UTC.
+    expect(range('2026-07-01', '2026-07-01')).toBe(1)
+    expect(range('2026-10-27', '2026-10-27')).toBe(1)
+    expect(range('2026-06-30', '2026-06-30')).toBe(0)
+    expect(range('2026-07-02', '2026-10-26')).toBe(48)
+  })
+
+  it('combines search, connectivity, dates and sort deterministically', () => {
+    const view = (patch: Partial<QueueFilters>, sort: Parameters<typeof applyQueueView>[2]) =>
+      applyQueueView(seed, filters(patch), sort).map((r) => r.incidentCode)
+    const silentWinter = {
+      connectivity: 'SILENT' as const,
+      reportedFrom: '2026-07-01',
+      reportedTo: '2026-08-31',
+    }
+    expect(view(silentWinter, 'REPORTED_ASC')).toEqual([
+      'INC-041',
+      'INC-039',
+      'INC-008',
+      'INC-023',
+      'INC-034',
+      'INC-012',
+      'INC-025',
+    ])
+    expect(view(silentWinter, 'REPORTED_DESC')).toEqual(
+      view(silentWinter, 'REPORTED_ASC').reverse()
+    )
+    expect(view({ ...silentWinter, search: 'echuca' }, 'REPORTED_DESC')).toEqual(['INC-012'])
+    expect(view({ reportedFrom: '2026-10-01', connectivity: 'OFFLINE' }, 'CODE_ASC')).toEqual([
+      'INC-002',
+      'INC-005',
+      'INC-010',
+      'INC-028',
+      'INC-031',
+      'INC-035',
+      'INC-036',
+      'INC-040',
+      'INC-043',
+      'INC-046',
+      'INC-049',
+    ])
   })
 })

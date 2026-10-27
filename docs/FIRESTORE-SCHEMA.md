@@ -62,19 +62,19 @@ This enables **lazy migration** — when a document is read, check `_schemaVersi
 | `deviceId` | `string` | Yes | Unique fictional SafeCall pendant ID |
 | `status` | `'OFFLINE' \| 'SILENT'` | Yes | Simulated connectivity state: `OFFLINE` = no heartbeat; `SILENT` = heartbeat but a missed check-in (see SEEDING.md) |
 | `suburb` / `state` / `postcode` | `string` / `'VIC'` / `string` | Yes | Real Victorian suburb and postcode for a fictional incident; postcode stored as a string |
-| `reportedAt` | `Timestamp` | Yes (v2) | **Simulated**: when the fictional monitoring platform raised the incident. Between 1 Sep and 20 Oct 2026 (Melbourne time); the primary time for display, sorting and the date filter. Absent in version 1 documents |
+| `reportedAt` | `Timestamp` | Yes (v2) | **Simulated**: when the fictional monitoring platform raised the incident. Between 1 Jul and 27 Oct 2026 (Melbourne time); the primary time for display, sorting and the date filter. Absent in version 1 documents |
 | `lastSignalAt` | `Timestamp` | Yes | **Simulated**: the last pendant heartbeat received before `reportedAt` (OFFLINE: when the heartbeat stopped; SILENT: the latest heartbeat, at most 60 minutes earlier). Not a live feed |
 | `causeCategory` | `'UNPLANNED_OUTAGE' \| 'DEVICE_SIDE' \| 'PLANNED_MAINTENANCE' \| 'EXTERNAL_HAZARD' \| 'INSUFFICIENT_EVIDENCE'` | Yes | Scenario label; seed distribution 15/12/10/8/5 — an association, not proof of cause (codes defined in SEEDING.md) |
 | `likelyCause` | `string` | Yes | Qualified, fictional explanation |
 | `recommendedAction` | `string` | Yes | Simulated, advisory-only recommendation |
 | `evidenceSummary` | `string` | Yes | Fictional supporting evidence |
 | `isSimulated` | `true` | Yes | Always true; shown as a label in the UI |
-| `createdAt` | `Timestamp` | Yes | **Real**: when the document was written (the seed time). Dataset metadata, never changed by the migration; shown only in the detail page's "Dataset record" box |
+| `createdAt` | `Timestamp` | Yes | **Real**: when the document was written (the seed time). Dataset metadata, never changed by the migration; shown only in the detail page's "Dataset record" box. Independent of the simulated times: a record written on 23 Oct can describe an incident reported on 27 Oct, and that is not a data issue |
 | `_schemaVersion` | `2` | Yes | Schema version (`1` before the Phase 6 migration) |
 
 **Queries:** always `where('ownerUid', '==', uid)` — use `ownIncidentsConstraints(uid)`.
 
-**Schema versions (Phase 6).** Version 2 adds `reportedAt` and re-bases `lastSignalAt` onto the fixed September–October 2026 scenario timeline (see [SEEDING.md → Timeline](SEEDING.md#timeline-schema-v2-phase-6)). Version 1 (Phases 3–5) had no `reportedAt`, and its `lastSignalAt` was the seed time minus a per-scenario offset, which is why every live incident showed the same 4:33 pm creation time. The app reads both: `parseIncident` marks a version 1 record `legacyTimeline: true`, leaves `reportedAt` null (it is never estimated) and does not count that as a data issue. The queue explains such records, the date filter leaves them out, and report-time sorting lists them last. A version 2 record without a valid `reportedAt` *is* a data issue. Live documents move from version 1 to 2 only through the controlled migration in `frontend/scripts/migrate-incident-timeline/` (see SEEDING.md); no rule or index changes are needed.
+**Schema versions (Phase 6).** Version 2 adds `reportedAt` and re-bases `lastSignalAt` onto the fixed July–October 2026 scenario timeline (see [SEEDING.md → Timeline](SEEDING.md#timeline-schema-v2)). Version 1 (Phases 3–5) had no `reportedAt`, and its `lastSignalAt` was the seed time minus a per-scenario offset, which is why every live incident showed the same 4:33 pm creation time. The app reads both: `parseIncident` marks a version 1 record `legacyTimeline: true`, leaves `reportedAt` null (it is never estimated) and does not count that as a data issue. The queue explains such records, the date filter leaves them out, and report-time sorting lists them last. A version 2 record without a valid `reportedAt` *is* a data issue. Live documents move from version 1 to 2 only through the controlled migration in `frontend/scripts/migrate-incident-timeline/` (see SEEDING.md); no rule or index changes are needed.
 
 ## `actionLogs` collection (SafeCall)
 

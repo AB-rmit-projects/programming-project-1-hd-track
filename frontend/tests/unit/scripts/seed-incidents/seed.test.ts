@@ -4,6 +4,7 @@ import type { Firestore } from 'firebase-admin/firestore'
 import { INCIDENTS_COLLECTION as APP_INCIDENTS_COLLECTION } from '@/lib/firebase/firestore'
 // The seed script lives outside src/, so the @/ alias cannot reach it.
 import {
+  LATEST_REPORTED_AT,
   buildSeedIncidents,
   type SeedIncidentData,
 } from '../../../../scripts/seed-incidents/dataset'
@@ -22,7 +23,8 @@ import {
 import { main, type CliDeps } from '../../../../scripts/seed-incidents/cli'
 
 const OWNER = 'demoOperatorUid01'
-const NOW = new Date('2026-10-21T00:00:00.000Z')
+// After the latest simulated report time: the CLI refuses to future-date incidents.
+const NOW = new Date('2026-10-28T00:00:00.000Z')
 const records = buildSeedIncidents(OWNER, NOW)
 const ids = records.map((r) => r.id)
 const idOf = (n: number) => `${OWNER}_INC-${String(n).padStart(3, '0')}`
@@ -577,5 +579,20 @@ describe('main — reporting and exit codes (fake store)', () => {
     const { d } = deps(store)
     await main([...ARGS, '--write'], ENV, io().io, d)
     expect(store.docs.get(idOf(1))?.createdAt).toEqual(NOW)
+  })
+
+  it('refuses (exit 2, nothing opened) while any simulated report time is still in the future', async () => {
+    const store = new FakeStore()
+    const { d } = deps(store)
+    const early = { ...d, now: () => new Date(LATEST_REPORTED_AT.getTime() - 1) }
+    const o = io()
+    await expect(main([...ARGS, '--write'], ENV, o.io, early)).resolves.toBe(2)
+    expect(o.err.join('\n')).toMatch(/Refused: .*dated in the future/)
+    expect(d.openStore).not.toHaveBeenCalled()
+    expect(store.docs.size).toBe(0)
+
+    const atLatest = { ...d, now: () => new Date(LATEST_REPORTED_AT.getTime()) }
+    await expect(main([...ARGS, '--write'], ENV, io().io, atLatest)).resolves.toBe(0)
+    expect(store.docs.size).toBe(50)
   })
 })

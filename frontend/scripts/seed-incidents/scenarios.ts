@@ -191,14 +191,20 @@ export function scenarioText(scenario: Scenario, occurrence: number): ScenarioTe
  * category blocks. Distribution: 15 outage · 12 device (6 offline + 6 silent) ·
  * 10 maintenance · 8 hazard (5 offline + 3 silent) · 5 inconclusive.
  *
- * Timeline (Phase 6, schema v2): historical fictional incidents reported
- * between 1 September and 20 October 2026, 25 in each month, all in Melbourne
- * time. Incident codes are dataset references, not chronological. Each
- * scenario's times fit its evidence: maintenance losses fall in overnight
- * windows, battery losses build up over hours, SILENT heartbeats are recent,
- * and the fictional flood (21–25 Sep), storm (2–6 Oct) and bushfire
- * (13–18 Oct) advisories group their hazard incidents. INC-036 straddles the
- * start of daylight saving on 4 October (01:47 AEST → 03:09 AEDT, 22 minutes).
+ * Timeline (schema v2): historical fictional incidents reported between
+ * 1 July and 27 October 2026 — 12 in July, 12 in August, 12 in September and
+ * 14 in October — all in Melbourne time. The latest report (INC-049, 27 Oct,
+ * 8:36 am AEDT) is a fixed time, never derived from the clock. Incident codes
+ * are dataset references, not chronological. Each scenario's times fit its
+ * evidence: maintenance losses fall in overnight windows, battery losses build
+ * up over hours, SILENT heartbeats are recent, and the fictional storm
+ * (14–15 Jul), flood (20–24 Aug) and bushfire (13–18 Oct) advisories group
+ * their hazard incidents. INC-036 straddles the start of daylight saving on
+ * 4 October (01:47 AEST → 03:09 AEDT, 22 minutes).
+ *
+ * The simulated times are independent of a document's real `createdAt` (when
+ * the fixture was written): a record inserted on 23 October can describe an
+ * incident reported on 27 October.
  */
 export const SCENARIOS: readonly Scenario[] = [
   {
@@ -219,8 +225,8 @@ export const SCENARIOS: readonly Scenario[] = [
     kind: 'MAINTENANCE_OFFLINE',
     suburb: 'Geelong',
     postcode: '3220',
-    lastSignal: '2026-09-08T00:52:38',
-    reported: '2026-09-08T01:19:03',
+    lastSignal: '2026-07-07T00:52:38',
+    reported: '2026-07-07T01:19:03',
   },
   {
     kind: 'OUTAGE_OFFLINE',
@@ -241,22 +247,22 @@ export const SCENARIOS: readonly Scenario[] = [
     kind: 'DEVICE_FAULT_SILENT',
     suburb: 'Warrnambool',
     postcode: '3280',
-    lastSignal: '2026-10-20T08:52:26',
-    reported: '2026-10-20T09:30:14',
+    lastSignal: '2026-10-26T08:52:26',
+    reported: '2026-10-26T09:30:14',
   },
   {
     kind: 'OUTAGE_OFFLINE',
     suburb: 'Mildura',
     postcode: '3500',
-    lastSignal: '2026-09-01T06:41:17',
-    reported: '2026-09-01T07:22:05',
+    lastSignal: '2026-07-01T06:41:17',
+    reported: '2026-07-01T07:22:05',
   },
   {
     kind: 'INCONCLUSIVE_SILENT',
     suburb: 'Traralgon',
     postcode: '3844',
-    lastSignal: '2026-10-12T13:34:26',
-    reported: '2026-10-12T14:12:58',
+    lastSignal: '2026-07-24T13:34:26',
+    reported: '2026-07-24T14:12:58',
   },
   {
     kind: 'MAINTENANCE_OFFLINE',
@@ -276,30 +282,30 @@ export const SCENARIOS: readonly Scenario[] = [
     kind: 'DEVICE_BATTERY_OFFLINE',
     suburb: 'Horsham',
     postcode: '3400',
-    lastSignal: '2026-09-01T21:16:44',
-    reported: '2026-09-02T08:05:31',
+    lastSignal: '2026-07-01T21:16:44',
+    reported: '2026-07-02T08:05:31',
   },
   {
     kind: 'HAZARD_SILENT',
     hazard: 'flood',
     suburb: 'Echuca',
     postcode: '3564',
-    lastSignal: '2026-09-21T16:02:41',
-    reported: '2026-09-21T16:51:08',
+    lastSignal: '2026-08-20T16:02:41',
+    reported: '2026-08-20T16:51:08',
   },
   {
     kind: 'OUTAGE_OFFLINE',
     suburb: 'Bairnsdale',
     postcode: '3875',
-    lastSignal: '2026-10-09T09:26:45',
-    reported: '2026-10-09T10:51:02',
+    lastSignal: '2026-08-13T09:26:45',
+    reported: '2026-08-13T10:51:02',
   },
   {
     kind: 'MAINTENANCE_OFFLINE',
     suburb: 'Wangaratta',
     postcode: '3677',
-    lastSignal: '2026-10-19T01:58:13',
-    reported: '2026-10-19T02:35:49',
+    lastSignal: '2026-08-31T01:58:13',
+    reported: '2026-08-31T02:35:49',
   },
   {
     kind: 'DEVICE_FAULT_SILENT',
@@ -312,8 +318,8 @@ export const SCENARIOS: readonly Scenario[] = [
     kind: 'OUTAGE_OFFLINE',
     suburb: 'Hamilton',
     postcode: '3300',
-    lastSignal: '2026-09-06T13:09:51',
-    reported: '2026-09-06T14:57:12',
+    lastSignal: '2026-07-22T13:09:51',
+    reported: '2026-07-22T14:57:12',
   },
   {
     kind: 'INCONCLUSIVE_SILENT',
@@ -327,22 +333,22 @@ export const SCENARIOS: readonly Scenario[] = [
     hazard: 'storm',
     suburb: 'Lakes Entrance',
     postcode: '3909',
-    lastSignal: '2026-10-06T15:37:42',
-    reported: '2026-10-06T17:14:26',
+    lastSignal: '2026-07-15T15:37:42',
+    reported: '2026-07-15T17:14:26',
   },
   {
     kind: 'MAINTENANCE_OFFLINE',
     suburb: 'Colac',
     postcode: '3250',
-    lastSignal: '2026-09-09T01:41:12',
-    reported: '2026-09-09T02:28:47',
+    lastSignal: '2026-08-04T01:41:12',
+    reported: '2026-08-04T02:28:47',
   },
   {
     kind: 'OUTAGE_OFFLINE',
     suburb: 'Benalla',
     postcode: '3672',
-    lastSignal: '2026-09-12T11:27:46',
-    reported: '2026-09-12T13:02:19',
+    lastSignal: '2026-08-08T11:27:46',
+    reported: '2026-08-08T13:02:19',
   },
   {
     kind: 'DEVICE_BATTERY_OFFLINE',
@@ -362,8 +368,8 @@ export const SCENARIOS: readonly Scenario[] = [
     kind: 'DEVICE_FAULT_SILENT',
     suburb: 'Seymour',
     postcode: '3660',
-    lastSignal: '2026-09-14T08:41:30',
-    reported: '2026-09-14T09:15:02',
+    lastSignal: '2026-08-11T08:41:30',
+    reported: '2026-08-11T09:15:02',
   },
   {
     kind: 'MAINTENANCE_OFFLINE',
@@ -377,15 +383,15 @@ export const SCENARIOS: readonly Scenario[] = [
     hazard: 'flood',
     suburb: 'Kerang',
     postcode: '3579',
-    lastSignal: '2026-09-23T05:47:03',
-    reported: '2026-09-23T06:29:15',
+    lastSignal: '2026-08-22T05:47:03',
+    reported: '2026-08-22T06:29:15',
   },
   {
     kind: 'OUTAGE_OFFLINE',
     suburb: 'Maryborough',
     postcode: '3465',
-    lastSignal: '2026-09-16T20:04:13',
-    reported: '2026-09-16T22:16:49',
+    lastSignal: '2026-08-26T20:04:13',
+    reported: '2026-08-26T22:16:49',
   },
   {
     kind: 'INCONCLUSIVE_SILENT',
@@ -406,8 +412,8 @@ export const SCENARIOS: readonly Scenario[] = [
     kind: 'DEVICE_BATTERY_OFFLINE',
     suburb: 'Moe',
     postcode: '3825',
-    lastSignal: '2026-09-23T23:49:58',
-    reported: '2026-09-24T17:31:06',
+    lastSignal: '2026-08-28T23:49:58',
+    reported: '2026-08-29T17:31:06',
   },
   {
     kind: 'OUTAGE_OFFLINE',
@@ -434,15 +440,15 @@ export const SCENARIOS: readonly Scenario[] = [
     kind: 'OUTAGE_OFFLINE',
     suburb: 'Stawell',
     postcode: '3380',
-    lastSignal: '2026-10-01T10:44:02',
-    reported: '2026-10-01T13:29:40',
+    lastSignal: '2026-07-22T10:44:02',
+    reported: '2026-07-22T13:29:40',
   },
   {
     kind: 'INCONCLUSIVE_SILENT',
     suburb: 'Bacchus Marsh',
     postcode: '3340',
-    lastSignal: '2026-10-03T11:51:24',
-    reported: '2026-10-03T12:43:07',
+    lastSignal: '2026-08-15T11:51:24',
+    reported: '2026-08-15T12:43:07',
   },
   {
     kind: 'HAZARD_OFFLINE',
@@ -463,23 +469,23 @@ export const SCENARIOS: readonly Scenario[] = [
     kind: 'OUTAGE_OFFLINE',
     suburb: 'Torquay',
     postcode: '3228',
-    lastSignal: '2026-10-10T14:48:11',
-    reported: '2026-10-10T15:16:39',
+    lastSignal: '2026-07-19T14:48:11',
+    reported: '2026-07-19T15:16:39',
   },
   {
     kind: 'DEVICE_BATTERY_OFFLINE',
     suburb: 'Mansfield',
     postcode: '3722',
-    lastSignal: '2026-10-10T16:05:33',
-    reported: '2026-10-11T11:19:47',
+    lastSignal: '2026-07-29T16:05:33',
+    reported: '2026-07-30T11:19:47',
   },
   {
     kind: 'HAZARD_SILENT',
     hazard: 'storm',
     suburb: 'Lorne',
     postcode: '3232',
-    lastSignal: '2026-10-02T18:26:33',
-    reported: '2026-10-02T18:47:10',
+    lastSignal: '2026-07-14T18:26:33',
+    reported: '2026-07-14T18:47:10',
   },
   {
     kind: 'OUTAGE_OFFLINE',
@@ -492,8 +498,8 @@ export const SCENARIOS: readonly Scenario[] = [
     kind: 'DEVICE_FAULT_SILENT',
     suburb: 'Dandenong',
     postcode: '3175',
-    lastSignal: '2026-10-08T11:03:28',
-    reported: '2026-10-08T11:30:16',
+    lastSignal: '2026-07-10T11:03:28',
+    reported: '2026-07-10T11:30:16',
   },
   {
     kind: 'MAINTENANCE_OFFLINE',
@@ -514,8 +520,8 @@ export const SCENARIOS: readonly Scenario[] = [
     hazard: 'flood',
     suburb: 'Cobram',
     postcode: '3644',
-    lastSignal: '2026-09-25T02:11:37',
-    reported: '2026-09-25T05:58:22',
+    lastSignal: '2026-08-24T02:11:37',
+    reported: '2026-08-24T05:58:22',
   },
   {
     kind: 'INCONCLUSIVE_SILENT',
@@ -528,35 +534,35 @@ export const SCENARIOS: readonly Scenario[] = [
     kind: 'DEVICE_BATTERY_OFFLINE',
     suburb: 'Pakenham',
     postcode: '3810',
-    lastSignal: '2026-10-16T20:38:21',
-    reported: '2026-10-17T09:02:56',
+    lastSignal: '2026-10-21T20:38:21',
+    reported: '2026-10-22T09:02:56',
   },
   {
     kind: 'MAINTENANCE_OFFLINE',
     suburb: 'Cranbourne',
     postcode: '3977',
-    lastSignal: '2026-10-12T00:27:44',
-    reported: '2026-10-12T00:51:09',
+    lastSignal: '2026-07-08T00:27:44',
+    reported: '2026-07-08T00:51:09',
   },
   {
     kind: 'DEVICE_FAULT_SILENT',
     suburb: 'Mornington',
     postcode: '3931',
-    lastSignal: '2026-10-19T09:11:40',
-    reported: '2026-10-19T09:39:05',
+    lastSignal: '2026-10-24T19:14:52',
+    reported: '2026-10-24T19:42:27',
   },
   {
     kind: 'OUTAGE_OFFLINE',
     suburb: 'Ocean Grove',
     postcode: '3226',
-    lastSignal: '2026-10-20T19:44:51',
-    reported: '2026-10-20T20:12:07',
+    lastSignal: '2026-10-27T07:58:41',
+    reported: '2026-10-27T08:36:17',
   },
   {
     kind: 'MAINTENANCE_OFFLINE',
     suburb: 'Camperdown',
     postcode: '3260',
-    lastSignal: '2026-09-10T00:14:55',
-    reported: '2026-09-10T00:39:20',
+    lastSignal: '2026-08-05T00:14:55',
+    reported: '2026-08-05T00:39:20',
   },
 ]
